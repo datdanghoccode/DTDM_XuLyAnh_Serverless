@@ -1,0 +1,42 @@
+# ==============================================================================
+# Đề tài 9: Xây dựng hệ thống xử lý ảnh hướng sự kiện bằng Serverless
+# Thành viên: Lê Doãn Đạt (038206000230) - Kiến trúc sư Hạ tầng & DevOps
+# File: terraform/terraform.tfvars.example
+# ==============================================================================
+# Hướng dẫn sử dụng:
+# 1. Sao chép file này thành terraform.tfvars:
+#    cp terraform.tfvars.example terraform.tfvars
+# 2. Điều chỉnh các giá trị phù hợp với kịch bản chạy (LocalStack hoặc AWS Cloud)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# KỊCH BẢN 1: CHẠY TRÊN LOCALSTACK (Môi trường giả lập local, không tốn chi phí)
+# ------------------------------------------------------------------------------
+# use_localstack      = true
+# localstack_endpoint = "http://localhost:4566"
+# aws_region           = "ap-southeast-1"
+# environment          = "local"
+# project_name         = "dtdm-image-processor"
+
+# ------------------------------------------------------------------------------
+# KỊCH BẢN 2: CHẠY TRÊN AWS CLOUD THẬT
+# ------------------------------------------------------------------------------
+use_localstack      = false
+aws_region          = "ap-southeast-1"
+environment         = "dev"
+project_name        = "dtdm-image-processor"
+
+# Cấu hình bộ nhớ cho hàm Lambda (128, 256, 512, 1024, 2048 MB)
+# Phục vụ Kỹ sư SRE (Vũ Thành Đạt) thực nghiệm đo Cold Start và Đánh đổi Hiệu năng - Chi phí
+lambda_memory_size  = 256
+lambda_timeout      = 30
+lambda_runtime      = "python3.11"
+log_level           = "INFO"
+
+# Cấu hình kích thước ảnh thumbnail
+thumbnail_width     = 200
+thumbnail_height    = 200
+
+# Cấu hình Hàng đợi lỗi Dead-Letter Queue (DLQ)
+dlq_max_receive_count         = 3
+dlq_message_retention_seconds = 1209600 # 14 ngày

@@ -218,3 +218,60 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ==============================================================================
+# Infrastructure as Code (Terraform) - Phụ trách: Lê Doãn Đạt
+# ==============================================================================
+# Local .terraform directories and plugin caches
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude sensitive tfvars containing secrets
+*.tfvars
+*.tfvars.json
+
+# Ignore override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Terraform lock file (optional, keep if strict provider locking is desired)
+# .terraform.lock.hcl
+
+# ==============================================================================
+# Cloud Credentials & Secret Management (Bảo mật - Least Privilege)
+# ==============================================================================
+.aws/
+aws_credentials
+*.pem
+*.key
+*.pfx
+*.cer
+secrets/
+*.secret
+.env
+.env.*
+!.env.example
+
+# ==============================================================================
+# Serverless & Lambda Packaging Artifacts
+# ==============================================================================
+lambda_package.zip
+*.zip
+dist/
+build/
+.serverless/
+.localstack/
+localstack_data/
+

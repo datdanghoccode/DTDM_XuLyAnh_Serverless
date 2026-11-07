@@ -1,0 +1,43 @@
+# ==============================================================================
+# Đề tài 9: Xây dựng hệ thống xử lý ảnh hướng sự kiện bằng Serverless
+# Thành viên: Lê Doãn Đạt (038206000230) - Kiến trúc sư Hạ tầng & DevOps
+# File: docker-compose.yml
+# ==============================================================================
+# Môi trường giả lập AWS LocalStack phục vụ:
+# 1. Phát triển và kiểm thử nội bộ không tốn chi phí AWS Cloud.
+# 2. Phục vụ giảng viên / người chấm bài chạy kiểm thử trực tiếp trên máy cá nhân.
+# 3. Giả lập đầy đủ: S3, SQS, DynamoDB, Lambda, CloudWatch, IAM, STS.
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  localstack:
+    container_name: dtdm-localstack
+    image: localstack/localstack:latest
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway chính
+      - "127.0.0.1:4510-4559:4510-4559"  # External services port range
+    environment:
+      - SERVICES=s3,sqs,dynamodb,lambda,cloudwatch,iam,sts
+      - AWS_DEFAULT_REGION=ap-southeast-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DEBUG=1
+      - LAMBDA_EXECUTOR=docker
+      - PERSISTENCE=0
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "./.localstack:/var/lib/localstack"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - dtdm-network
+
+networks:
+  dtdm-network:
+    name: dtdm-serverless-net
+    driver: bridge
