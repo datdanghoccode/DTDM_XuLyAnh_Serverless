@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 title Live Demo Pipeline Xu Ly Anh Serverless - De Tai 9 UTH
 color 0b
 echo ======================================================================
@@ -7,7 +8,8 @@ echo    Truong Dai hoc Giao thong Van tai TP.HCM (UTH)
 echo    Giang vien huong dan: TS. Le Quoc Tuan
 echo ======================================================================
 echo.
-echo [1/2] Dang khoi dong Web Server Flask tai cong 5000...
+echo [1/2] Dang mo trinh duyet truy cap http://localhost:5000...
 start "" http://localhost:5000
+echo [2/2] Dang khoi dong Web Server Flask tai cong 5000...
 python demo_app.py
 pause

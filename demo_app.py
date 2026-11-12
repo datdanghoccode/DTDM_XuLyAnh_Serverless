@@ -446,7 +446,6 @@ def generate_sample():
     fname = f"sample_{w}x{h}_{int(time.time())}.jpg"
     return jsonify({'base64': b64, 'filename': fname})
 
-@app.route('/api/process_image', action_methods=['POST'])
 @app.route('/api/process_image', methods=['POST'])
 def process_image():
     req = request.json or {}
