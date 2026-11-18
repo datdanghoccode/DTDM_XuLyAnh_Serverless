@@ -94,3 +94,10 @@ python3 infrastructure/scripts/security_audit.py
 ```bash
 ./infrastructure/scripts/destroy.sh
 ```
+
+
+## 🎨 Slide Thuyết Trình Canva (Chính Thức)
+- **Trình chiếu trực tiếp:** [Canva Presentation View](https://www.canva.com/d/YDv9KODgQ8wv1_j)
+- **Link chỉnh sửa:** [Canva Edit URL](https://www.canva.com/d/6RegHVs9h3jP9Tz)
+- **Shortlink:** [https://canva.link/jlx9lzyo6vveryp](https://canva.link/jlx9lzyo6vveryp)
+- **Quy mô:** 24 slide chuẩn 16:9, tông màu Deep Navy & Cyan, phân chia đều 3 thành viên, tích hợp khung Video Demo.
