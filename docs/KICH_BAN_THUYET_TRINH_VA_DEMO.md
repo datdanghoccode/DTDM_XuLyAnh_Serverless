@@ -157,9 +157,9 @@
   >   *Khi container đã ở trạng thái 'ấm', toàn bộ mã nguồn và thư viện đã nằm sẵn trong bộ nhớ, hàm xử lý ảnh thuần túy trong RAM.*  
   > *- **Tỷ lệ suy hao hiệu năng (Overhead):** Cold Start chậm hơn Warm Start tới **20.5 lần**!*  
   > *- **Về các chỉ số phân vị (Percentiles):**  
-  >   *+ Độ trễ trung vị **$p_{50}$ đạt 25.88 ms** — minh chứng 50% yêu cầu được xử lý cực kỳ nhanh.*  
+  >   *+ Độ trễ trung vị **$p_{50}$ đạt 30.3 ms** — minh chứng 50% yêu cầu được xử lý cực kỳ nhanh.*  
   >   *+ Phân vị **$p_{90}$ đạt 36.08 ms**.*  
-  >   *+ Phân vị **$p_{95}$ vọt lên 293.82 ms** và **$p_{99}$ là 589.20 ms**.*  
+  >   *+ Phân vị **$p_{95}$ vọt lên 289.5 ms** và **$p_{99}$ là 589.20 ms**.*  
   >   *Khoảng cách lớn ở $p_{95}$ và $p_{99}$ chính là bằng chứng định lượng rõ ràng nhất về hiện tượng Cold Start khi hệ thống phải scale mở rộng thêm worker mới."*
 
 ---
@@ -171,8 +171,8 @@
   > *- Tuy nhiên, nếu tiếp tục nâng lên 1024MB hoặc 2048MB, thời gian xử lý bắt đầu bão hòa ở mức 21 ms do bài toán resize ảnh 1080p đã đạt giới hạn I/O bộ nhớ, trong khi đơn giá tính cước trên mỗi mili-giây lại tăng gấp 4 lần.*  
   > *=> Kết luận: **512MB RAM là điểm tối ưu tuyệt đối (Sweet Spot)** giữa hiệu năng và chi phí.*  
   > *Dựa trên biểu phí AWS Lambda ($0.0000166667 / GB-s và $0.20 / 1M requests), nhóm tính toán chi phí vận hành cho 3 mức lưu lượng:*  
-  > *1. **Mức thấp (Startup - 10.000 ảnh/tháng):** Chi phí chỉ **$0.0042 / tháng**, hoàn toàn nằm trong Free Tier miễn phí.*  
-  > *2. **Mức vừa (SME - 100.000 ảnh/tháng):** Chi phí là **$0.0416 / tháng** (chưa đến 1.100 VNĐ), tiết kiệm hơn 95% so với thuê một máy chủ EC2 t2.micro giá $10/tháng.*  
+  > *1. **Mức thấp (Startup - 10.000 ảnh/tháng):** Chi phí chỉ **$0.004 / tháng**, hoàn toàn nằm trong Free Tier miễn phí.*  
+  > *2. **Mức vừa (SME - 100.000 ảnh/tháng):** Chi phí là **$0.045 / tháng** (chưa đến 1.100 VNĐ), tiết kiệm hơn 95% so với thuê một máy chủ EC2 t2.micro giá $10/tháng.*  
   > *3. **Mức cao (Doanh nghiệp - 1.000.000 ảnh/tháng):** Chi phí chỉ vỏn vẹn **$0.416 / tháng** (khoảng 10.500 VNĐ)!"*
 
 ---
@@ -331,8 +331,8 @@
   3. Thẻ Xanh Sky: **Độ trễ trung vị (p50): `25.8 ms`** (50% requests phản hồi).
   4. Thẻ Cam: **Độ trễ phân vị 95 (p95): `293.8 ms`** (Độ trễ do cold scale-out).
 - Phía dưới là **Bảng Ước Tính Chi Phí Vận Hành (AWS Pricing Model)**:
-  + Mức thấp (10k req): **$0.0042 / tháng** (Miễn phí trong Free Tier).
-  + Mức trung bình (100k req): **$0.0416 / tháng** (Tiết kiệm >95% so với EC2).
+  + Mức thấp (10k req): **$0.004 / tháng** (Miễn phí trong Free Tier).
+  + Mức trung bình (100k req): **$0.045 / tháng** (Tiết kiệm >95% so với EC2).
   + Mức cao (1M req): **$0.4160 / tháng** (Chưa tới 11.000 VNĐ / 1 triệu ảnh).
 - Hộp nhật ký `Log thực nghiệm` hiển thị chi tiết hoàn tất và xác nhận file CSV.
 
@@ -421,9 +421,9 @@
 | :--- | :--- | :---: |
 | **Độ trễ Warm Start trung bình** | `26.98 ms` | ✅ Sẵn sàng |
 | **Độ trễ Cold Start trung bình** | `552.73 ms` (Chậm hơn Warm 20.5 lần) | ✅ Sẵn sàng |
-| **Phân vị độ trễ p50 / p95** | $p_{50} = 25.88\text{ ms}$ / $p_{95} = 293.82\text{ ms}$ | ✅ Sẵn sàng |
+| **Phân vị độ trễ p50 / p95** | $p_{50} = 30.3\text{ ms}$ / $p_{95} = 289.5\text{ ms}$ | ✅ Sẵn sàng |
 | **Tỷ lệ nén dung lượng Thumbnail** | Giảm từ **85% đến 90%** dung lượng tệp gốc | ✅ Sẵn sàng |
 | **Thời gian hủy sự kiện trùng (Idempotency)** | **Dưới 2.0 mili-giây** (ConditionalCheckFailed) | ✅ Sẵn sàng |
 | **Tỷ lệ cô lập tệp độc hại vào SQS DLQ** | **100% (5/5 tệp)** chuyển hướng chuẩn xác | ✅ Sẵn sàng |
-| **Ước tính chi phí 100.000 ảnh/tháng** | **$0.0416 / tháng** (~1.100 VNĐ) | ✅ Sẵn sàng |
+| **Ước tính chi phí 100.000 ảnh/tháng** | **$0.045 / tháng** (~1.100 VNĐ) | ✅ Sẵn sàng |
 | **Ứng dụng Web Live Demo** | `http://localhost:5000` (4 bước tương tác) | ✅ Sẵn sàng |
