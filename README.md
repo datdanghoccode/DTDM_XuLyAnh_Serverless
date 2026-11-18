@@ -5,9 +5,9 @@ Kho mã nguồn bài tập lớn học phần **Điện toán đám mây**. Dự
 ---
 
 ### 🎨 Slide Báo cáo Thuyết trình Canva (13 Slide Chuẩn UTH)
-* **Link Trình Chiếu Trực Tiếp (View URL):** [https://www.canva.com/d/YDdmJbZOCU0fn21](https://www.canva.com/d/YDdmJbZOCU0fn21)
-* **Link Chỉnh Sửa Thiết Kế (Edit URL):** [https://www.canva.com/d/fhcShPG-2ZZkPTR](https://www.canva.com/d/fhcShPG-2ZZkPTR)
-* **Quy chuẩn:** 13 slide chuẩn 16:9, Tiêu đề 40pt / Nội dung 28pt, tích hợp 4 hình minh họa thực nghiệm, phân công đúng thứ tự 3 thành viên (10 phút).
+* **Link Trình Chiếu Trực Tiếp (View URL):** [https://www.canva.com/d/VLuYFh4lFKbaNOJ](https://www.canva.com/d/VLuYFh4lFKbaNOJ)
+* **Link Chỉnh Sửa Thiết Kế (Edit URL):** [https://www.canva.com/d/I6_zU7X9_krsa3H](https://www.canva.com/d/I6_zU7X9_krsa3H)
+* **Quy chuẩn:** 13 slide chuẩn 16:9, Tiêu đề 38-40pt / Nội dung 28-30pt, tích hợp 4 hình minh họa thực nghiệm, phân chia đúng 3 thành viên (10 phút).
 
 ---
 
