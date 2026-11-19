@@ -26,6 +26,7 @@ def create_app(test_config=None):
     @app.route("/api/status", methods=["GET"])
     def get_status():
         return jsonify({
+            "status": "ok",
             "live": True,
             "port": 5002,
             "app_name": "Web 2 - Interactive Live Lab",
