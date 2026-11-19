@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học viện & Phòng Thí nghiệm Serverless - Đề tài 9 (Live Lab :5002)</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Chart.js CDN for latency histogram -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header class="top-header">
+        <div class="brand-group">
+            <span class="brand-title">Serverless Live Lab Studio</span>
+            <span class="port-badge">:5002</span>
+            <span style="font-size: 0.8rem; color: var(--text-secondary);">Đề tài 9 • TS. Lê Quốc Tuấn (UTH)</span>
+        </div>
+        <div class="header-actions">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span id="engineStatusText">ENGINE ONLINE</span>
+            </div>
+            <a href="http://localhost:5001" target="_blank" class="nav-link-btn">
+                📖 Mở Web 1: Học viện Kiến thức (:5001) →
+            </a>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Visual Pipeline Canvas -->
+        <div class="pipeline-card">
+            <div class="card-header">
+                <span class="card-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                    Visual Pipeline Canvas (Luồng Dữ Liệu Thời Gian Thực)
+                </span>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--mono-font);" id="pipelineMetricsHeader">
+                    Processed: 0 | DLQ Depth: 0
+                </div>
+            </div>
+            <div class="pipeline-flow">
+                <div class="flow-node" id="node-client">
+                    <div class="node-num">01. INGESTION</div>
+                    <div class="node-label">Client Upload</div>
+                    <div class="node-desc">Nhịp tải không đều (Spike)</div>
+                </div>
+                <div class="flow-node" id="node-s3-in">
+                    <div class="node-num">02. OBJECT STORAGE</div>
+                    <div class="node-label">S3 Raw Input</div>
+                    <div class="node-desc">Phát ObjectCreated</div>
+                </div>
+                <div class="flow-node" id="node-sqs">
+                    <div class="node-num">03. BUFFER QUEUE</div>
+                    <div class="node-label">SQS Event Queue</div>
+                    <div class="node-desc">Đệm tải At-least-once</div>
+                </div>
+                <div class="flow-node" id="node-lambda">
+                    <div class="node-num">04. FAAS COMPUTE</div>
+                    <div class="node-label">AWS Lambda</div>
+                    <div class="node-desc">SHA-256 & Pillow 300x300</div>
+                </div>
+                <div class="flow-node" id="node-storage">
+                    <div class="node-num">05. PERSISTENCE</div>
+                    <div class="node-label">S3 Thumb & DynamoDB</div>
+                    <div class="node-desc">Metadata & -90% Storage</div>
+                </div>
+                <div class="flow-node" id="node-dlq">
+                    <div class="node-num">06. FAULT ISOLATION</div>
+                    <div class="node-label">SQS Dead-Letter Queue</div>
+                    <div class="node-desc">Cô lập Poison Pill (14d)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-Column Grid: Action Scenarios vs Telemetry Console -->
+        <div class="workspace-grid">
+            <!-- Left Column: Scenario Action Panels -->
+            <div class="action-box">
+                <nav class="tab-nav">
+                    <button class="tab-btn active" data-tab="tab-standard">1. Xử Lý Chuẩn</button>
+                    <button class="tab-btn" data-tab="tab-idempotent">2. Khóa Lũy Đẳng</button>
+                    <button class="tab-btn" data-tab="tab-poison">3. Lỗi SQS DLQ</button>
+                    <button class="tab-btn" data-tab="tab-benchmark">4. Benchmark 100 Runs</button>
+                </nav>
+
+                <!-- TAB 1: STANDARD INGESTION -->
+                <div class="tab-content active" id="tab-standard">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 1: Tải Ảnh Hợp Lệ & Tạo Thumbnail 300x300</div>
+                        <div class="action-sub">Sự kiện S3 kích hoạt Lambda, đọc byte stream trong RAM, nén JPEG 85% và ghi metadata DynamoDB.</div>
+                    </div>
+
+                    <div class="dropzone" id="dropzoneUpload">
+                        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--primary); margin-bottom: 0.5rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <div style="font-weight: 600;">Kéo thả ảnh vào đây, hoặc nhấn để chọn ảnh từ máy</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Hỗ trợ JPEG, PNG, WebP (Tối đa 10 MB)</div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" id="btnSample1080p">⚡ Sinh Ảnh Mẫu 1080p</button>
+                        <button class="btn btn-primary" id="btnProcessNormal">🚀 Kích Hoạt Pipeline</button>
+                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); margin-left: auto;">
+                            <input type="checkbox" id="chkSimColdStart"> Giả lập Cold Start (+520ms)
+                        </label>
+                    </div>
+
+                    <!-- Image Results -->
+                    <div class="image-comparison" id="imgComparisonBox" style="display: none;">
+                        <div class="img-card">
+                            <div class="img-card-title">ẢNH GỐC (S3 INPUT)</div>
+                            <img id="previewOrig" class="img-preview" src="" alt="Original">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.4rem;" id="lblOrigInfo">-</div>
+                        </div>
+                        <div class="img-card">
+                            <div class="img-card-title">THUMBNAIL 300x300 (S3 OUTPUT)</div>
+                            <img id="previewThumb" class="img-preview" src="" alt="Thumbnail">
+                            <div id="lblThumbInfo">-</div>
+                            <span class="compression-pill" id="lblCompression">-</span>
+                        </div>
+                    </div>
+
+                    <div class="metadata-box" id="metaResultBox" style="display: none;">
+                        <div style="color: var(--text-secondary); margin-bottom: 0.25rem;">// DynamoDB ImageMetadata Record</div>
+                        <pre id="metaJsonContent"></pre>
+                    </div>
+                </div>
+
+                <!-- TAB 2: IDEMPOTENCY VERIFICATION -->
+                <div class="tab-content" id="tab-idempotent">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 2: Kiểm Chứng Khóa Lũy Đẳng Nguyên Tử DynamoDB</div>
+                        <div class="action-sub">Mô phỏng mạng gửi lặp lại cùng sự kiện (At-least-once). Đảm bảo hệ thống phát hiện trùng mã băm SHA-256 và từ chối trong &lt; 2.5 ms.</div>
+                    </div>
+
+                    <div style="background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem;">Mã băm SHA-256 hiện hành cần kiểm thử trùng lặp:</div>
+                        <input type="text" id="txtCurrentHash" readonly style="width: 100%; background-color: var(--bg-darkest); border: 1px solid var(--border-subtle); color: var(--primary); font-family: var(--mono-font); font-size: 0.8rem; padding: 0.5rem; border-radius: 4px;" value="(Chưa có ảnh - hãy xử lý ảnh ở Tab 1 trước hoặc bấm nút bên dưới)">
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-warning" id="btnSendDuplicate">🔄 Gửi Lặp Sự Kiện Trùng Mã Băm</button>
+                        <button class="btn btn-outline" id="btnGenNewHash">Tạo Hash Mới</button>
+                    </div>
+
+                    <div id="idempotentResultBox" style="margin-top: 1.25rem; display: none; background-color: #271d05; border: 1px solid #78350f; border-radius: 6px; padding: 1rem;">
+                        <div style="color: #fbbf24; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;" id="idempotentTitle">SKIPPED_IDEMPOTENT (Phát hiện trùng lặp)</div>
+                        <div style="color: #fef3c7; font-size: 0.8rem;" id="idempotentMsg">-</div>
+                        <div style="font-family: var(--mono-font); font-size: 0.75rem; color: #fde68a; margin-top: 0.5rem;" id="idempotentLatency">-</div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: POISON PILL & SQS DLQ -->
+                <div class="tab-content" id="tab-poison">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 3: Bơm Tệp Độc Hại & Cô Lập Vào SQS Dead-Letter Queue</div>
+                        <div class="action-sub">Tải lên tệp nhị phân hỏng. Thư viện Pillow bắt UnidentifiedImageError, retry 3 lần và chuyển vào hàng đợi lỗi SQS DLQ.</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                        <button class="btn btn-secondary" style="justify-content: center;" id="btnPoisonMagicBytes">☣️ Tệp Hỏng Header (Magic Bytes)</button>
+                        <button class="btn btn-secondary" style="justify-content: center;" id="btnPoisonMalwareExt">⚠️ Giả Mạo Đuôi (.exe đổi thành .jpg)</button>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-danger" id="btnTriggerPoison">⚡ Bơm Tệp Độc Vào Pipeline</button>
+                        <button class="btn btn-outline" id="btnOpenDlqModal">📦 Xem Hàng Đợi DLQ (<span id="lblDlqCount">0</span>)</button>
+                    </div>
+
+                    <div id="poisonResultBox" style="margin-top: 1.25rem; display: none; background-color: #2e080c; border: 1px solid #991b1b; border-radius: 6px; padding: 1rem;">
+                        <div style="color: #f87171; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">ROUTED_TO_DLQ (Cô lập thành công)</div>
+                        <div style="color: #fecaca; font-size: 0.8rem;" id="poisonErrorMsg">-</div>
+                        <div style="font-family: var(--mono-font); font-size: 0.75rem; color: #fca5a5; margin-top: 0.5rem;" id="poisonRetriesDetail">-</div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: BENCHMARK 100 RUNS -->
+                <div class="tab-content" id="tab-benchmark">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 4: Đo Lường Định Lượng 100 Lần Gọi (Benchmark Suite)</div>
+                        <div class="action-sub">Thu thập dữ liệu đo Cold/Warm Start, xác lập bảng phân vị p50, p90, p95, p99 và ước tính chi phí 3 mức tải.</div>
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <div class="stat-val" id="statP50">30.3 ms</div>
+                            <div class="stat-lbl">Độ trễ trung vị (p50)</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-val" id="statP95">289.5 ms</div>
+                            <div class="stat-lbl">Phân vị đuôi (p95)</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-val" id="statSweetSpot">512 MB</div>
+                            <div class="stat-lbl">Điểm ngọt RAM</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-val" id="statErrorRate" style="color: var(--success);">0.0%</div>
+                            <div class="stat-lbl">Tỷ lệ lỗi tệp hợp lệ</div>
+                        </div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-primary" id="btnRunBenchmarkDataset">📊 Tái Hiện Dữ Liệu Đo UTH (100 Runs)</button>
+                        <button class="btn btn-secondary" id="btnExportCsv">📥 Tải CSV (benchmark_100_runs.csv)</button>
+                    </div>
+
+                    <div class="chart-wrapper">
+                        <canvas id="benchmarkChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Live Telemetry & Console Log Terminal -->
+            <div class="telemetry-card">
+                <div style="padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-surface);">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                        Telemetry & Execution Log (Thời Gian Thực)
+                    </span>
+                    <button id="btnClearLog" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;">Xóa Log</button>
+                </div>
+                <div class="console-terminal" id="consoleOutput">
+                    <div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">[INFO]</span> Hệ thống Serverless Live Lab sẵn sàng tại cổng :5002.</div>
+                    <div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">[INIT]</span> S3 Buckets, DynamoDB ImageMetadata và SQS Queues đã nạp bộ nhớ.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SRE DLQ Modal -->
+    <div class="modal-overlay dlq-modal" id="dlqModalOverlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div style="font-weight: 700; color: var(--danger); font-size: 1.05rem;">SRE Runbook: Quản Trị Hàng Đợi SQS DLQ</div>
+                <button id="btnCloseDlqModal" style="background: none; border: none; color: var(--text-secondary); font-size: 1.25rem; cursor: pointer;">&times;</button>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                Các thông điệp lỗi hoặc tệp độc hại được lưu trữ an toàn trong 14 ngày. Kỹ sư SRE có thể kiểm tra payload và kích hoạt Redrive sau khi vá lỗi.
+            </div>
+            <div id="dlqMessageList" style="max-height: 250px; overflow-y: auto; background-color: var(--bg-darkest); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0.75rem; font-family: var(--mono-font); font-size: 0.75rem; color: #fca5a5; margin-bottom: 1rem;">
+                (Không có thông điệp trong DLQ)
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" id="btnCloseDlqModalBtn">Đóng</button>
+                <button class="btn btn-success" id="btnRedriveDlq" style="background-color: var(--success); color: #052e16;">🔄 Vá Lỗi & Start DLQ Redrive</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Controller -->
+    <script src="/static/js/lab.js"></script>
+</body>
+</html>
