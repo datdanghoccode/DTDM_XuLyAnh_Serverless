@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 web2_live_lab/app.py
-Flask Application for Web 2 Interactive Live Lab (:5002).
+Flask Application for Web 2 Interactive Live Lab Studio (:5002).
+Provides comprehensive operational REST APIs for end-to-end Serverless simulation,
+idempotency testing, error isolation, benchmarking, RAM trade-off modeling, and SRE operations.
 """
 
-import os
 import io
 import time
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, jsonify, request, render_template
 from PIL import Image
 
 from web2_live_lab.pipeline_engine import ServerlessPipelineEngine
@@ -42,6 +43,7 @@ def create_app(test_config=None):
         file = request.files.get("image")
         is_sample = request.form.get("is_sample", "false").lower() == "true"
         is_cold = request.form.get("is_cold", "false").lower() == "true"
+        memory_mb = int(request.form.get("memory_mb", "512"))
 
         if file:
             filename = file.filename or f"upload_{int(time.time())}.jpg"
@@ -57,7 +59,7 @@ def create_app(test_config=None):
             return jsonify({"error": "No file uploaded"}), 400
 
         try:
-            result = engine.process_image(file_bytes, filename, is_cold=is_cold)
+            result = engine.process_image(file_bytes, filename, is_cold=is_cold, memory_mb=memory_mb)
             return jsonify(result)
         except Exception as e:
             return jsonify({"status": "FAILED", "error": str(e)}), 500
@@ -79,6 +81,40 @@ def create_app(test_config=None):
         result = engine.simulate_poison_pill(poison_type, filename)
         return jsonify(result)
 
+    @app.route("/api/simulate-timeout", methods=["POST"])
+    def simulate_timeout():
+        data = request.get_json() or {}
+        filename = data.get("filename", "huge_unbounded_image.jpg")
+        result = engine.simulate_timeout(filename)
+        return jsonify(result)
+
+    @app.route("/api/ram-tradeoff", methods=["GET", "POST"])
+    def ram_tradeoff():
+        if request.method == "POST":
+            data = request.get_json() or {}
+            memory_mb = int(data.get("memory_mb", 512))
+            package_mb = int(data.get("package_mb", 15))
+        else:
+            memory_mb = int(request.args.get("memory_mb", 512))
+            package_mb = int(request.args.get("package_mb", 15))
+
+        result = engine.calculate_ram_tradeoff(memory_mb, package_mb)
+        return jsonify(result)
+
+    @app.route("/api/security-audit", methods=["GET"])
+    def security_audit():
+        result = engine.run_security_audit()
+        return jsonify(result)
+
+    @app.route("/api/dynamodb-records", methods=["GET"])
+    def get_dynamodb_records():
+        records = engine.get_dynamodb_records()
+        return jsonify({
+            "table_name": engine.metadata_table,
+            "count": len(records),
+            "records": records
+        })
+
     @app.route("/api/benchmark", methods=["GET"])
     def get_benchmark():
         mode = request.args.get("mode", "verified")
@@ -93,9 +129,9 @@ def create_app(test_config=None):
             "percentiles": percentiles,
             "error_rate": 0.0,
             "costs": {
-                "low_tier_10k": 0.004,
-                "mid_tier_100k": 0.045,
-                "high_tier_1m": 0.452
+                "low_tier_10k": 0.0046,
+                "mid_tier_100k": 0.0459,
+                "high_tier_1m": 0.4590
             }
         })
 
@@ -110,7 +146,6 @@ def create_app(test_config=None):
 
     @app.route("/api/dlq/redrive", methods=["POST"])
     def redrive_dlq():
-        # Move messages from DLQ to main queue and process a replacement valid image
         count = engine.sqs.redrive_dlq(engine.dlq_name, engine.queue_name)
         # Simulate processing one recovered message
         buf = io.BytesIO()
@@ -129,4 +164,3 @@ def create_app(test_config=None):
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="0.0.0.0", port=5002, debug=True)

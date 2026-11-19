@@ -28,7 +28,27 @@
     </header>
 
     <div class="main-container">
-        <!-- Visual Pipeline Canvas -->
+        <!-- Top Architectural Ribbon (Lý Thuyết Cốt Lõi) -->
+        <div class="theory-ribbon">
+            <div class="theory-item" title="Khái niệm FaaS, Event Source, Trigger, Stateless, Timeout 30s, Concurrency và At-least-once">
+                <div class="theory-title">⚡ 1. FaaS & Sự Kiện</div>
+                <div class="theory-desc">Scale-to-Zero, S3 Trigger, Stateless, Concurrency & At-least-once delivery</div>
+            </div>
+            <div class="theory-item" title="Idempotency SHA-256, Retry with Exponential Backoff, SQS DLQ lưu giữ 14 ngày">
+                <div class="theory-title">🔄 2. Lũy Đẳng & Phục Hồi</div>
+                <div class="theory-desc">Khóa DynamoDB nguyên tử, Retry with Backoff & SQS DLQ cô lập Poison Pill</div>
+            </div>
+            <div class="theory-item" title="Cold Start MicroVM Firecracker, Warm invocation, Package size và Sweet Spot 512MB RAM">
+                <div class="theory-title">❄️ 3. Cold Start & RAM</div>
+                <div class="theory-desc">MicroVM Init 520ms vs Warm 27ms, Sweet Spot 512MB RAM & Provisioned Concurrency</div>
+            </div>
+            <div class="theory-item" title="Chuẩn OWASP Serverless Top 10, IAM Least Privilege, STS Token và an toàn /tmp">
+                <div class="theory-title">🛡️ 4. An Ninh OWASP</div>
+                <div class="theory-desc">Least Privilege 6 Statement, Zero Hardcoded Secrets & An toàn bộ nhớ /tmp</div>
+            </div>
+        </div>
+
+        <!-- Visual Pipeline Canvas (Minh chứng 1: Pipeline hoạt động đầu-cuối) -->
         <div class="pipeline-card">
             <div class="card-header">
                 <span class="card-title">
@@ -36,19 +56,19 @@
                     Visual Pipeline Canvas (Luồng Dữ Liệu Thời Gian Thực)
                 </span>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--mono-font);" id="pipelineMetricsHeader">
-                    Processed: 0 | DLQ Depth: 0
+                    Processed: 0 | Raw S3: 0 | Thumbnails: 0 | DynamoDB: 0 | DLQ Depth: 0
                 </div>
             </div>
             <div class="pipeline-flow">
                 <div class="flow-node" id="node-client">
                     <div class="node-num">01. INGESTION</div>
                     <div class="node-label">Client Upload</div>
-                    <div class="node-desc">Nhịp tải không đều (Spike)</div>
+                    <div class="node-desc">Nhịp tải không đều (Burst)</div>
                 </div>
                 <div class="flow-node" id="node-s3-in">
                     <div class="node-num">02. OBJECT STORAGE</div>
                     <div class="node-label">S3 Raw Input</div>
-                    <div class="node-desc">Phát ObjectCreated</div>
+                    <div class="node-desc">Phát s3:ObjectCreated</div>
                 </div>
                 <div class="flow-node" id="node-sqs">
                     <div class="node-num">03. BUFFER QUEUE</div>
@@ -58,12 +78,12 @@
                 <div class="flow-node" id="node-lambda">
                     <div class="node-num">04. FAAS COMPUTE</div>
                     <div class="node-label">AWS Lambda</div>
-                    <div class="node-desc">SHA-256 & Pillow 300x300</div>
+                    <div class="node-desc">Pillow 512MB & SHA-256</div>
                 </div>
                 <div class="flow-node" id="node-storage">
                     <div class="node-num">05. PERSISTENCE</div>
                     <div class="node-label">S3 Thumb & DynamoDB</div>
-                    <div class="node-desc">Metadata & -90% Storage</div>
+                    <div class="node-desc">Metadata & -89% Storage</div>
                 </div>
                 <div class="flow-node" id="node-dlq">
                     <div class="node-num">06. FAULT ISOLATION</div>
@@ -73,22 +93,24 @@
             </div>
         </div>
 
-        <!-- 2-Column Grid: Action Scenarios vs Telemetry Console -->
+        <!-- 2-Column Grid: Action Scenarios vs Telemetry Console & DynamoDB Inspector -->
         <div class="workspace-grid">
             <!-- Left Column: Scenario Action Panels -->
             <div class="action-box">
                 <nav class="tab-nav">
-                    <button class="tab-btn active" data-tab="tab-standard">1. Xử Lý Chuẩn</button>
+                    <button class="tab-btn active" data-tab="tab-standard">1. Tải Ảnh & Metadata</button>
                     <button class="tab-btn" data-tab="tab-idempotent">2. Khóa Lũy Đẳng</button>
-                    <button class="tab-btn" data-tab="tab-poison">3. Lỗi SQS DLQ</button>
+                    <button class="tab-btn" data-tab="tab-poison">3. Lỗi, Timeout & DLQ</button>
                     <button class="tab-btn" data-tab="tab-benchmark">4. Benchmark 100 Runs</button>
+                    <button class="tab-btn" data-tab="tab-ram">5. Khảo Sát RAM & Chi Phí</button>
+                    <button class="tab-btn" data-tab="tab-security">6. An Ninh & SRE Runbook</button>
                 </nav>
 
                 <!-- TAB 1: STANDARD INGESTION -->
                 <div class="tab-content active" id="tab-standard">
                     <div class="action-header">
-                        <div class="action-title">Kịch bản 1: Tải Ảnh Hợp Lệ & Tạo Thumbnail 300x300</div>
-                        <div class="action-sub">Sự kiện S3 kích hoạt Lambda, đọc byte stream trong RAM, nén JPEG 85% và ghi metadata DynamoDB.</div>
+                        <div class="action-title">Kịch bản 1: Tải Ảnh Vào Object Storage & Tạo Thumbnail</div>
+                        <div class="action-sub">Sự kiện kích hoạt hàm FaaS nạp luồng RAM, trích xuất metadata, nén giảm ~89% dung lượng và ghi trạng thái PROCESSED.</div>
                     </div>
 
                     <div class="dropzone" id="dropzoneUpload">
@@ -98,153 +120,380 @@
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Hỗ trợ JPEG, PNG, WebP (Tối đa 10 MB)</div>
                     </div>
 
-                    <div class="btn-group">
-                        <button class="btn btn-secondary" id="btnSample1080p">⚡ Sinh Ảnh Mẫu 1080p</button>
-                        <button class="btn btn-primary" id="btnProcessNormal">🚀 Kích Hoạt Pipeline</button>
-                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); margin-left: auto;">
-                            <input type="checkbox" id="chkSimColdStart"> Giả lập Cold Start (+520ms)
+                    <div class="controls-row">
+                        <button class="btn btn-primary" id="btnUploadSample">
+                            📸 Tạo Ảnh Mẫu Chuẩn 1080p (Sample)
+                        </button>
+                        <label class="toggle-control">
+                            <input type="checkbox" id="chkColdStart">
+                            <span>Mô phỏng Cold Start (+520ms)</span>
                         </label>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">RAM: <strong style="color: var(--primary);" id="lblActiveRam">512 MB</strong></span>
                     </div>
 
-                    <!-- Image Results -->
-                    <div class="image-comparison" id="imgComparisonBox" style="display: none;">
-                        <div class="img-card">
-                            <div class="img-card-title">ẢNH GỐC (S3 INPUT)</div>
-                            <img id="previewOrig" class="img-preview" src="" alt="Original">
-                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.4rem;" id="lblOrigInfo">-</div>
+                    <div id="uploadResultCard" style="display: none; margin-top: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--success); margin-bottom: 0.5rem;" id="resStatusHeading">
+                            ✓ ĐÃ XỬ LÝ THÀNH CÔNG VÀ LƯU TRỮ METADATA
                         </div>
-                        <div class="img-card">
-                            <div class="img-card-title">THUMBNAIL 300x300 (S3 OUTPUT)</div>
-                            <img id="previewThumb" class="img-preview" src="" alt="Thumbnail">
-                            <div id="lblThumbInfo">-</div>
-                            <span class="compression-pill" id="lblCompression">-</span>
+                        <div class="result-grid">
+                            <div class="preview-box">
+                                <div class="preview-title">Ảnh Thumbnail (300x300 Output S3)</div>
+                                <img id="imgThumbnailResult" class="preview-img" src="" alt="Thumbnail preview">
+                            </div>
+                            <div class="metrics-summary">
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Tên tệp gốc:</span>
+                                    <span class="metric-val" id="resFilename">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Độ phân giải:</span>
+                                    <span class="metric-val" id="resDimensions">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Dung lượng:</span>
+                                    <span class="metric-val" id="resSize">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Hiệu quả nén:</span>
+                                    <span class="metric-val highlight" id="resCompression">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Độ trễ xử lý:</span>
+                                    <span class="metric-val" id="resLatency">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Mã băm SHA-256:</span>
+                                    <span class="metric-val" id="resHash" style="font-family: var(--mono-font); font-size: 0.7rem; word-break: break-all;">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-lbl">Trạng thái DynamoDB:</span>
+                                    <span class="metric-val highlight" id="resDbStatus">PROCESSED</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="metadata-box" id="metaResultBox" style="display: none;">
-                        <div style="color: var(--text-secondary); margin-bottom: 0.25rem;">// DynamoDB ImageMetadata Record</div>
-                        <pre id="metaJsonContent"></pre>
                     </div>
                 </div>
 
-                <!-- TAB 2: IDEMPOTENCY VERIFICATION -->
+                <!-- TAB 2: IDEMPOTENCY TEST -->
                 <div class="tab-content" id="tab-idempotent">
                     <div class="action-header">
-                        <div class="action-title">Kịch bản 2: Kiểm Chứng Khóa Lũy Đẳng Nguyên Tử DynamoDB</div>
-                        <div class="action-sub">Mô phỏng mạng gửi lặp lại cùng sự kiện (At-least-once). Đảm bảo hệ thống phát hiện trùng mã băm SHA-256 và từ chối trong &lt; 2.5 ms.</div>
+                        <div class="action-title">Kịch bản 2: Gửi Lặp Sự Kiện & Kiểm Chứng Khóa Lũy Đẳng</div>
+                        <div class="action-sub">Mô phỏng mạng phân tán At-least-once gửi lại cùng một ảnh. DynamoDB kích hoạt khóa nguyên tử từ chối tại tầng lưu trữ trong &lt; 2.5 ms.</div>
                     </div>
 
-                    <div style="background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.4rem;">Mã băm SHA-256 hiện hành cần kiểm thử trùng lặp:</div>
-                        <input type="text" id="txtCurrentHash" readonly style="width: 100%; background-color: var(--bg-darkest); border: 1px solid var(--border-subtle); color: var(--primary); font-family: var(--mono-font); font-size: 0.8rem; padding: 0.5rem; border-radius: 4px;" value="(Chưa có ảnh - hãy xử lý ảnh ở Tab 1 trước hoặc bấm nút bên dưới)">
+                    <div class="code-box">
+                        <span style="color: var(--text-muted);">// Biểu thức điều kiện nguyên tử trên DynamoDB:</span><br>
+                        <span style="color: var(--primary);">ConditionExpression = "attribute_not_exists(image_hash) OR status = FAILED"</span>
                     </div>
 
-                    <div class="btn-group">
-                        <button class="btn btn-warning" id="btnSendDuplicate">🔄 Gửi Lặp Sự Kiện Trùng Mã Băm</button>
-                        <button class="btn btn-outline" id="btnGenNewHash">Tạo Hash Mới</button>
+                    <div style="margin: 1rem 0;">
+                        <button class="btn btn-primary" id="btnTestDuplicate">
+                            🔄 Gửi Lặp Sự Kiện Vừa Tải (Idempotency Lock Test)
+                        </button>
                     </div>
 
-                    <div id="idempotentResultBox" style="margin-top: 1.25rem; display: none; background-color: #271d05; border: 1px solid #78350f; border-radius: 6px; padding: 1rem;">
-                        <div style="color: #fbbf24; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;" id="idempotentTitle">SKIPPED_IDEMPOTENT (Phát hiện trùng lặp)</div>
-                        <div style="color: #fef3c7; font-size: 0.8rem;" id="idempotentMsg">-</div>
-                        <div style="font-family: var(--mono-font); font-size: 0.75rem; color: #fde68a; margin-top: 0.5rem;" id="idempotentLatency">-</div>
+                    <div id="duplicateResultCard" style="display: none; margin-top: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--primary); margin-bottom: 0.5rem;">
+                            🔒 PHÁT HIỆN SỰ KIỆN TRÙNG LẶP — KHÓA NGUYÊN TỬ KÍCH HOẠT
+                        </div>
+                        <div class="metrics-summary">
+                            <div class="metric-row">
+                                <span class="metric-lbl">Thời gian từ chối:</span>
+                                <span class="metric-val highlight" id="resDupLatency">&lt; 2.5 ms</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Cơ chế bảo vệ:</span>
+                                <span class="metric-val">ConditionalCheckFailedException (Tầng lưu trữ phần cứng)</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Xử lý ảnh lặp lại:</span>
+                                <span class="metric-val" style="color: var(--success); font-weight: 700;">ĐÃ BỎ QUA 100% (Tiết kiệm CPU & I/O)</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Bản ghi trùng lặp trong DB:</span>
+                                <span class="metric-val highlight" style="color: var(--success);">TUYỆT ĐỐI KHÔNG TẠO BẢN GHI MỚI</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- TAB 3: POISON PILL & SQS DLQ -->
+                <!-- TAB 3: POISON PILL & TIMEOUT DLQ -->
                 <div class="tab-content" id="tab-poison">
                     <div class="action-header">
-                        <div class="action-title">Kịch bản 3: Bơm Tệp Độc Hại & Cô Lập Vào SQS Dead-Letter Queue</div>
-                        <div class="action-sub">Tải lên tệp nhị phân hỏng. Thư viện Pillow bắt UnidentifiedImageError, retry 3 lần và chuyển vào hàng đợi lỗi SQS DLQ.</div>
+                        <div class="action-title">Kịch bản 3: Tệp Lỗi, Quá Hạn Timeout & Cô Lập SQS DLQ</div>
+                        <div class="action-sub">Mô phỏng tệp hỏng/giả mạo và tác vụ quá hạn 30s. Hệ thống tự động thử lại 3 lần với Exponential Backoff rồi đưa vào Dead-Letter Queue.</div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
-                        <button class="btn btn-secondary" style="justify-content: center;" id="btnPoisonMagicBytes">☣️ Tệp Hỏng Header (Magic Bytes)</button>
-                        <button class="btn btn-secondary" style="justify-content: center;" id="btnPoisonMalwareExt">⚠️ Giả Mạo Đuôi (.exe đổi thành .jpg)</button>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                        <button class="btn btn-danger" id="btnSimulatePoison">
+                            ☣️ Tải Tệp Hỏng / Giả Mạo (Poison Pill Test)
+                        </button>
+                        <button class="btn btn-warning" id="btnSimulateTimeout">
+                            ⏳ Gây Lỗi Quá Hạn (Lambda Timeout > 30s)
+                        </button>
+                        <button class="btn" style="border: 1px solid var(--border);" id="btnOpenDlqModal">
+                            📦 Mở Hàng Đợi SQS DLQ (Inspect & Redrive)
+                        </button>
                     </div>
 
-                    <div class="btn-group">
-                        <button class="btn btn-danger" id="btnTriggerPoison">⚡ Bơm Tệp Độc Vào Pipeline</button>
-                        <button class="btn btn-outline" id="btnOpenDlqModal">📦 Xem Hàng Đợi DLQ (<span id="lblDlqCount">0</span>)</button>
-                    </div>
-
-                    <div id="poisonResultBox" style="margin-top: 1.25rem; display: none; background-color: #2e080c; border: 1px solid #991b1b; border-radius: 6px; padding: 1rem;">
-                        <div style="color: #f87171; font-weight: 700; font-size: 0.95rem; margin-bottom: 0.4rem;">ROUTED_TO_DLQ (Cô lập thành công)</div>
-                        <div style="color: #fecaca; font-size: 0.8rem;" id="poisonErrorMsg">-</div>
-                        <div style="font-family: var(--mono-font); font-size: 0.75rem; color: #fca5a5; margin-top: 0.5rem;" id="poisonRetriesDetail">-</div>
+                    <div id="poisonResultCard" style="display: none; margin-top: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--danger); margin-bottom: 0.5rem;" id="poisonHeading">
+                            ⚠️ CÔ LẬP SỰ CỐ VÀO SQS DEAD-LETTER QUEUE THÀNH CÔNG
+                        </div>
+                        <div class="metrics-summary">
+                            <div class="metric-row">
+                                <span class="metric-lbl">Loại ngoại lệ:</span>
+                                <span class="metric-val" id="resPoisonError" style="color: var(--danger);">-</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Số lần thử lại (Retries):</span>
+                                <span class="metric-val" id="resPoisonRetries">3 lần (Exponential Backoff: 50ms, 100ms, 200ms)</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Hàng đợi cô lập:</span>
+                                <span class="metric-val highlight" id="resPoisonDlq">image-dlq (Lưu giữ 14 ngày)</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-lbl">Cảnh báo hệ thống:</span>
+                                <span class="metric-val" style="color: var(--warning);">CloudWatch Alarm: ApproximateNumberOfMessagesVisible &gt; 0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- TAB 4: BENCHMARK 100 RUNS -->
                 <div class="tab-content" id="tab-benchmark">
                     <div class="action-header">
-                        <div class="action-title">Kịch bản 4: Đo Lường Định Lượng 100 Lần Gọi (Benchmark Suite)</div>
-                        <div class="action-sub">Thu thập dữ liệu đo Cold/Warm Start, xác lập bảng phân vị p50, p90, p95, p99 và ước tính chi phí 3 mức tải.</div>
+                        <div class="action-title">Kịch bản 4: Đo Lường Định Lượng 100 Lần Gọi & Chi Phí 3 Mức Tải</div>
+                        <div class="action-sub">Phân tích thực nghiệm độ trễ Cold/Warm, các chỉ số phân vị p50, p95, thông lượng và dự toán chi phí.</div>
                     </div>
 
-                    <div class="stats-row">
-                        <div class="stat-box">
-                            <div class="stat-val" id="statP50">30.3 ms</div>
-                            <div class="stat-lbl">Độ trễ trung vị (p50)</div>
+                    <div style="margin-bottom: 1rem;">
+                        <button class="btn btn-primary" id="btnRunBenchmark">
+                            📊 Chạy Phân Tích Benchmark 100 Lần Gọi
+                        </button>
+                    </div>
+
+                    <div id="benchmarkStatsCard" style="display: none;">
+                        <div class="benchmark-grid">
+                            <div class="b-card">
+                                <div class="b-lbl">p50 (Trung vị)</div>
+                                <div class="b-val" style="color: var(--primary);" id="valP50">30.3 ms</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">50% yêu cầu ấm</div>
+                            </div>
+                            <div class="b-card">
+                                <div class="b-lbl">p90</div>
+                                <div class="b-val" id="valP90">36.1 ms</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Ổn định cao</div>
+                            </div>
+                            <div class="b-card">
+                                <div class="b-lbl">p95 (Đuôi trễ)</div>
+                                <div class="b-val" style="color: var(--warning);" id="valP95">289.5 ms</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Tải đột biến</div>
+                            </div>
+                            <div class="b-card">
+                                <div class="b-lbl">p99 (Đỉnh trễ)</div>
+                                <div class="b-val" style="color: var(--danger);" id="valP99">589.2 ms</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">Full Cold Start</div>
+                            </div>
+                            <div class="b-card">
+                                <div class="b-lbl">Tỷ lệ lỗi (Error Rate)</div>
+                                <div class="b-val" style="color: var(--success);" id="valErrorRate">0.00%</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">100/100 hợp lệ</div>
+                            </div>
                         </div>
-                        <div class="stat-box">
-                            <div class="stat-val" id="statP95">289.5 ms</div>
-                            <div class="stat-lbl">Phân vị đuôi (p95)</div>
+
+                        <!-- Latency Chart Canvas -->
+                        <div style="background: var(--bg-card); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border); margin: 1rem 0;">
+                            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 0.5rem;">Biểu đồ phân phối độ trễ (Latency Distribution Histogram):</div>
+                            <div style="height: 220px; width: 100%;">
+                                <canvas id="chartLatencyHistogram"></canvas>
+                            </div>
                         </div>
-                        <div class="stat-box">
-                            <div class="stat-val" id="statSweetSpot">512 MB</div>
-                            <div class="stat-lbl">Điểm ngọt RAM</div>
+
+                        <!-- 3-Tier Cost Estimation Table -->
+                        <div style="background: var(--bg-card); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                            <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--primary);">Ước tính chi phí Serverless cho 3 mức lưu lượng tải:</div>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mức Lưu Lượng</th>
+                                        <th>Số Ảnh / Tháng</th>
+                                        <th>Chi Phí Serverless</th>
+                                        <th>So Với EC2 t2.micro ($10)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Mức Thấp</strong></td>
+                                        <td>10,000 ảnh</td>
+                                        <td><strong style="color: var(--success);">$0.0046 USD</strong></td>
+                                        <td>Tiết kiệm 99.95%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Mức Vừa</strong></td>
+                                        <td>100,000 ảnh</td>
+                                        <td><strong style="color: var(--primary);">$0.0459 USD</strong></td>
+                                        <td>Tiết kiệm 99.54%</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Mức Cao</strong></td>
+                                        <td>1,000,000 ảnh</td>
+                                        <td><strong style="color: var(--warning);">$0.4590 USD</strong></td>
+                                        <td>Tiết kiệm 95.41%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="stat-box">
-                            <div class="stat-val" id="statErrorRate" style="color: var(--success);">0.0%</div>
-                            <div class="stat-lbl">Tỷ lệ lỗi tệp hợp lệ</div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: RAM & PACKAGE SIZE TRADE-OFF -->
+                <div class="tab-content" id="tab-ram">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 5: Khảo Sát RAM, Package Size & Điểm Ngọt (Sweet Spot)</div>
+                        <div class="action-sub">Tương tác trực tiếp với thanh trượt cấu hình bộ nhớ để quan sát sự thay đổi giữa năng lực CPU, Cold Start, Warm Start và chi phí.</div>
+                    </div>
+
+                    <div style="background: var(--bg-card); padding: 1.25rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                            <label style="font-size: 0.85rem; font-weight: 600;">Dung lượng RAM phân bổ:</label>
+                            <span style="font-family: var(--mono-font); font-size: 1.1rem; font-weight: 700; color: var(--primary);" id="dispRamMb">512 MB</span>
+                        </div>
+                        <input type="range" id="sliderRam" min="128" max="2048" step="128" value="512" style="width: 100%; accent-color: var(--primary);">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            <span>128 MB</span>
+                            <span>256 MB</span>
+                            <span style="color: var(--success); font-weight: 700;">512 MB (Sweet Spot)</span>
+                            <span>1024 MB</span>
+                            <span>2048 MB</span>
                         </div>
                     </div>
 
-                    <div class="btn-group">
-                        <button class="btn btn-primary" id="btnRunBenchmarkDataset">📊 Tái Hiện Dữ Liệu Đo UTH (100 Runs)</button>
-                        <button class="btn btn-secondary" id="btnExportCsv">📥 Tải CSV (benchmark_100_runs.csv)</button>
+                    <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                        <span style="font-size: 0.85rem; font-weight: 600;">Kích thước gói (Package Size):</span>
+                        <button class="btn btn-sm btn-primary" id="btnPkgPillow">Pillow Tinh Gọn (15 MB)</button>
+                        <button class="btn btn-sm" style="border: 1px solid var(--border);" id="btnPkgOpenCv">OpenCV Đầy Đủ (150 MB)</button>
                     </div>
 
-                    <div class="chart-wrapper">
-                        <canvas id="benchmarkChart" height="180"></canvas>
+                    <div class="metrics-summary" id="ramTradeoffCard">
+                        <div class="metric-row">
+                            <span class="metric-lbl">Năng lực CPU tương ứng:</span>
+                            <span class="metric-val highlight" id="lblRamVcpu">0.33 vCPU</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-lbl">Độ trễ Cold Start dự kiến:</span>
+                            <span class="metric-val" id="lblRamCold">660.0 ms</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-lbl">Độ trễ Warm Start:</span>
+                            <span class="metric-val highlight" id="lblRamWarm">26.8 ms</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-lbl">Chi phí / 100,000 lần gọi:</span>
+                            <span class="metric-val" id="lblRamCost">$0.0228 USD</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-lbl">Đánh giá kỹ thuật:</span>
+                            <span class="metric-val" id="lblRamEval" style="color: var(--success); font-weight: 700;">ĐIỂM NGỌT (SWEET SPOT): Tăng tốc 360% với chi phí chỉ tăng 8%.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 6: SECURITY AUDIT & SRE RUNBOOK -->
+                <div class="tab-content" id="tab-security">
+                    <div class="action-header">
+                        <div class="action-title">Kịch bản 6: Ma Trận Phân Quyền IAM, Security Audit & SRE Runbook</div>
+                        <div class="action-sub">Minh chứng không lưu khóa trong mã nguồn (Zero Hardcoded Secrets) và quy trình chuẩn hóa vận hành SRE DLQ Redrive 3 bước.</div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem;">
+                        <button class="btn btn-primary" id="btnRunSecurityAudit">
+                            🛡️ Chạy Kiểm Tra Security Audit (Zero Hardcoded Secrets)
+                        </button>
+                        <button class="btn btn-danger" id="btnTriggerRedrive">
+                            🔄 Kích Hoạt SQS DLQ Redrive (Tái Xử Lý Lỗi)
+                        </button>
+                    </div>
+
+                    <div id="securityAuditResult" style="display: none; margin-bottom: 1rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--success); margin-bottom: 0.5rem;">
+                            ✓ KẾT QUẢ KIỂM TOÁN AN NINH: 100/100 ĐIỂM (PASS)
+                        </div>
+                        <div id="auditCheckList" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                    </div>
+
+                    <!-- SRE Runbook 3-step guide -->
+                    <div style="background: var(--bg-card); padding: 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--warning); margin-bottom: 0.5rem;">Sổ Tay Vận Hành SRE Runbook (Quy Trình 3 Bước Xử Lý Sự Cố):</div>
+                        <ol style="margin-left: 1.25rem; font-size: 0.85rem; line-height: 1.8; color: var(--text-secondary);">
+                            <li><strong>Bước 1 (Phát hiện & Cảnh báo):</strong> CloudWatch Alarm kích hoạt khi <code>ApproximateNumberOfMessagesVisible &gt; 0</code>.</li>
+                            <li><strong>Bước 2 (Điều tra nguyên nhân gốc RCA):</strong> SRE mở hộp thoại DLQ để kiểm tra payload lỗi; xóa tệp giả mạo hoặc nâng RAM trong Terraform nếu lỗi timeout.</li>
+                            <li><strong>Bước 3 (Khắc phục & Redrive):</strong> Nhấn nút "Kích Hoạt SQS DLQ Redrive" để tự động đẩy toàn bộ thông điệp lỗi trở lại hàng đợi chính xử lý lại an toàn.</li>
+                        </ol>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Column: Live Telemetry & Console Log Terminal -->
-            <div class="telemetry-card">
-                <div style="padding: 0.85rem 1rem; display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-surface);">
-                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                        Telemetry & Execution Log (Thời Gian Thực)
-                    </span>
-                    <button id="btnClearLog" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;">Xóa Log</button>
+            <!-- Right Column: Real-time Telemetry Console & DynamoDB Records Inspector -->
+            <div class="telemetry-box">
+                <!-- Telemetry Log Terminal -->
+                <div class="console-card">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                            Real-time Telemetry Console
+                        </span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm" id="btnClearLogs">Xóa</button>
+                            <button class="btn btn-sm" id="btnExportLogs">Xuất Log</button>
+                        </div>
+                    </div>
+                    <div class="console-terminal" id="consoleTerminal">
+                        <div class="log-line log-info">[SYSTEM] Môi trường giả lập AWS Serverless (ap-southeast-1) đã sẵn sàng.</div>
+                        <div class="log-line log-info">[SYSTEM] S3 Buckets, DynamoDB ImageMetadata và SQS Event Queue đang trực tuyến.</div>
+                        <div class="log-line log-info">[INFO] Đang chờ sự kiện đầu tiên từ phía người dùng...</div>
+                    </div>
                 </div>
-                <div class="console-terminal" id="consoleOutput">
-                    <div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">[INFO]</span> Hệ thống Serverless Live Lab sẵn sàng tại cổng :5002.</div>
-                    <div class="log-entry"><span class="log-time">[00:00:00]</span> <span class="log-info">[INIT]</span> S3 Buckets, DynamoDB ImageMetadata và SQS Queues đã nạp bộ nhớ.</div>
+
+                <!-- Live DynamoDB Records Inspector (Minh chứng không tạo bản ghi trùng) -->
+                <div class="console-card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <span class="card-title">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                            Bảng DynamoDB ImageMetadata (Minh Chứng Không Trùng Lặp)
+                        </span>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); font-family: var(--mono-font);" id="lblDbCount">0 Bản Ghi</span>
+                    </div>
+                    <div class="dynamodb-viewer" id="dynamodbViewer">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 1rem;">Chưa có bản ghi nào được ghi nhận.</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- SRE DLQ Modal -->
-    <div class="modal-overlay dlq-modal" id="dlqModalOverlay">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <div style="font-weight: 700; color: var(--danger); font-size: 1.05rem;">SRE Runbook: Quản Trị Hàng Đợi SQS DLQ</div>
-                <button id="btnCloseDlqModal" style="background: none; border: none; color: var(--text-secondary); font-size: 1.25rem; cursor: pointer;">&times;</button>
+    <!-- SRE Dead-Letter Queue Inspect & Redrive Modal -->
+    <div class="modal-overlay dlq-modal" id="modalDlqOverlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <span style="font-weight: 700; color: var(--danger); font-size: 1rem;">📦 SQS Dead-Letter Queue Inspector (image-dlq)</span>
+                <button class="modal-close-btn" id="btnCloseDlqModal">&times;</button>
             </div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">
-                Các thông điệp lỗi hoặc tệp độc hại được lưu trữ an toàn trong 14 ngày. Kỹ sư SRE có thể kiểm tra payload và kích hoạt Redrive sau khi vá lỗi.
+            <div class="modal-body">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                    Danh sách các thông điệp lỗi (Poison Pill / Timeout) được cô lập trong 14 ngày:
+                </div>
+                <div id="dlqMessageList" class="dlq-msg-list">
+                    <div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 1rem;">
+                        Hàng đợi lỗi hiện đang rỗng (Depth = 0).
+                    </div>
+                </div>
             </div>
-            <div id="dlqMessageList" style="max-height: 250px; overflow-y: auto; background-color: var(--bg-darkest); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0.75rem; font-family: var(--mono-font); font-size: 0.75rem; color: #fca5a5; margin-bottom: 1rem;">
-                (Không có thông điệp trong DLQ)
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-                <button class="btn btn-secondary" id="btnCloseDlqModalBtn">Đóng</button>
-                <button class="btn btn-success" id="btnRedriveDlq" style="background-color: var(--success); color: #052e16;">🔄 Vá Lỗi & Start DLQ Redrive</button>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="btnModalRedrive">
+                    🔄 Kích Hoạt Redrive (Bơm Ngược Về Hàng Đợi Nguồn)
+                </button>
             </div>
         </div>
     </div>

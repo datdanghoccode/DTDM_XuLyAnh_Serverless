@@ -95,5 +95,35 @@ class TestWeb2Api(unittest.TestCase):
         self.assertIn("p95", data["percentiles"])
         self.assertEqual(data["error_rate"], 0.0)
 
+    def test_api_simulate_timeout(self):
+        res = self.client.post("/api/simulate-timeout", json={"filename": "heavy_unbounded.jpg"})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "TIMEOUT_ROUTED_TO_DLQ")
+        self.assertEqual(data["retries_attempted"], 3)
+        self.assertIn("TimeoutError", data["error"])
+
+    def test_api_ram_tradeoff(self):
+        res = self.client.get("/api/ram-tradeoff?memory_mb=512&package_mb=15")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["is_sweet_spot"])
+        self.assertEqual(data["memory_mb"], 512)
+        self.assertEqual(data["warm_start_ms"], 26.8)
+
+    def test_api_security_audit(self):
+        res = self.client.get("/api/security-audit")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["status"], "AUDIT_PASSED")
+        self.assertGreaterEqual(len(data["checks"]), 4)
+
+    def test_api_dynamodb_records(self):
+        res = self.client.get("/api/dynamodb-records")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["table_name"], "ImageMetadata")
+        self.assertIsInstance(data["records"], list)
+
 if __name__ == "__main__":
     unittest.main()

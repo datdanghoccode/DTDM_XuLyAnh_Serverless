@@ -1,371 +1,541 @@
-// web2_live_lab/static/js/lab.js - Live Lab Frontend Controller
+// web2_live_lab/static/js/lab.js
+// Interactive Live Lab Controller for Serverless Image Processing Studio (:5002)
+
 document.addEventListener('DOMContentLoaded', () => {
-    let currentHash = '';
-    let selectedFile = null;
-    let chartInstance = null;
+    let lastUploadedHash = null;
+    let latencyChartInstance = null;
+    let selectedPackageMb = 15;
 
-    // Element References
-    const consoleOutput = document.getElementById('consoleOutput');
+    // Element references
+    const consoleTerminal = document.getElementById('consoleTerminal');
     const pipelineMetricsHeader = document.getElementById('pipelineMetricsHeader');
-    const txtCurrentHash = document.getElementById('txtCurrentHash');
-    const lblDlqCount = document.getElementById('lblDlqCount');
+    const lblDbCount = document.getElementById('lblDbCount');
+    const dynamodbViewer = document.getElementById('dynamodbViewer');
+    const lblActiveRam = document.getElementById('lblActiveRam');
 
-    // Utility: Append colored log
-    function appendLog(level, message) {
-        const now = new Date();
-        const timeStr = `[${now.toTimeString().split(' ')[0]}]`;
-        const entry = document.createElement('div');
-        entry.className = 'log-entry';
-
-        let lvlClass = 'log-info';
-        if (level === 'SUCCESS') lvlClass = 'log-success';
-        if (level === 'IDEMPOTENT') lvlClass = 'log-idempotent';
-        if (level === 'ERROR' || level === 'DLQ') lvlClass = 'log-error';
-
-        entry.innerHTML = `<span class="log-time">${timeStr}</span> <span class="${lvlClass}">[${level}]</span> ${message}`;
-        consoleOutput.appendChild(entry);
-        consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    // Logging helper
+    function logTelemetry(type, message) {
+        if (!consoleTerminal) return;
+        const now = new Date().toISOString().substring(11, 23);
+        const div = document.createElement('div');
+        div.className = `log-line log-${type}`;
+        div.textContent = `[${now}] [${type.toUpperCase()}] ${message}`;
+        consoleTerminal.appendChild(div);
+        consoleTerminal.scrollTop = consoleTerminal.scrollHeight;
     }
 
-    // Utility: Visual Canvas Node Pulse Animation
-    function pulseNodes(nodes, status = 'pulse') {
-        const classMap = {
-            'pulse': 'active-pulse',
-            'error': 'active-error',
-            'idempotent': 'active-idempotent'
-        };
-        const cls = classMap[status] || 'active-pulse';
-
-        nodes.forEach((id, index) => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            setTimeout(() => {
-                el.classList.add(cls);
-                setTimeout(() => el.classList.remove(cls), 1200);
-            }, index * 250);
-        });
+    // Node animation helper
+    function pulseNode(nodeId, type = 'active', durationMs = 800) {
+        const node = document.getElementById(nodeId);
+        if (!node) return;
+        const className = type === 'error' ? 'error-pulse' : 'active-pulse';
+        node.classList.add(className);
+        setTimeout(() => node.classList.remove(className), durationMs);
     }
 
-    // Tab Navigation
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const targetId = btn.getAttribute('data-tab');
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => c.classList.remove('active'));
-
-            btn.classList.add('active');
-            const targetContent = document.getElementById(targetId);
-            if (targetContent) targetContent.classList.add('active');
-        });
-    });
-
-    // Check system status periodically
-    async function updateStatus() {
+    // Refresh system status & DynamoDB inspector
+    async function refreshStatus() {
         try {
             const res = await fetch('/api/status');
-            if (res.ok) {
-                const data = await res.json();
-                pipelineMetricsHeader.textContent = `Processed: ${data.processed_count} | S3 Input: ${data.raw_bucket_count} | DynamoDB: ${data.dynamodb_count} | DLQ Depth: ${data.dlq_depth}`;
-                lblDlqCount.textContent = data.dlq_depth;
+            if (!res.ok) return;
+            const data = await res.json();
+            if (pipelineMetricsHeader) {
+                pipelineMetricsHeader.textContent = 
+                    `Processed: ${data.processed_count} | Raw S3: ${data.raw_bucket_count} | Thumbnails: ${data.thumb_bucket_count} | DynamoDB: ${data.dynamodb_count} | DLQ Depth: ${data.dlq_depth}`;
             }
+            if (lblDbCount) {
+                lblDbCount.textContent = `${data.dynamodb_count} Bản Ghi`;
+            }
+            loadDynamoDbRecords();
         } catch (e) {
-            console.error('Status check failed:', e);
+            console.error('Lỗi làm mới trạng thái:', e);
         }
     }
-    updateStatus();
-    setInterval(updateStatus, 5000);
 
-    // TAB 1: File Dropzone & Normal Processing
+    async function loadDynamoDbRecords() {
+        if (!dynamodbViewer) return;
+        try {
+            const res = await fetch('/api/dynamodb-records');
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!data.records || data.records.length === 0) {
+                dynamodbViewer.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 1rem;">Chưa có bản ghi nào trong bảng.</div>';
+                return;
+            }
+
+            let html = '<table class="data-table"><thead><tr><th>Hash (SHA-256)</th><th>Tên Tệp</th><th>Kích Thước</th><th>Độ Trễ</th><th>Trạng Thái</th></tr></thead><tbody>';
+            data.records.forEach(r => {
+                const shortHash = (r.image_hash || '').substring(0, 10) + '...';
+                const statusColor = r.status === 'COMPLETED' ? 'var(--success)' : (r.status === 'FAILED' ? 'var(--danger)' : 'var(--primary)');
+                html += `<tr>
+                    <td style="color: var(--primary); font-weight: 600;" title="${r.image_hash || ''}">${shortHash}</td>
+                    <td>${r.filename || 'sample.jpg'}</td>
+                    <td>${r.size_kb || 0} KB</td>
+                    <td>${r.latency_ms ? r.latency_ms + ' ms' : '-'}</td>
+                    <td><strong style="color: ${statusColor};">${r.status || 'PROCESSED'}</strong></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            dynamodbViewer.innerHTML = html;
+        } catch (e) {
+            console.error('Lỗi nạp DynamoDB records:', e);
+        }
+    }
+
+    // Tabs Navigation
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetTab = btn.getAttribute('data-tab');
+            tabButtons.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            const targetEl = document.getElementById(targetTab);
+            if (targetEl) targetEl.classList.add('active');
+        });
+    });
+
+    // 1. STANDARD UPLOAD HANDLING
     const dropzone = document.getElementById('dropzoneUpload');
     const fileInput = document.getElementById('fileInput');
-    const btnSample1080p = document.getElementById('btnSample1080p');
-    const btnProcessNormal = document.getElementById('btnProcessNormal');
-    const chkSimColdStart = document.getElementById('chkSimColdStart');
+    const btnUploadSample = document.getElementById('btnUploadSample');
+    const chkColdStart = document.getElementById('chkColdStart');
 
-    dropzone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            selectedFile = e.target.files[0];
-            dropzone.querySelector('div:first-of-type').textContent = `Đã chọn: ${selectedFile.name} (${(selectedFile.size / 1024).toFixed(1)} KB)`;
-            appendLog('INFO', `Đã nạp tệp người dùng: ${selectedFile.name}`);
-        }
-    });
+    if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--primary)'; });
+        dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--border)'; });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = 'var(--border)';
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files && fileInput.files.length > 0) {
+                handleFileUpload(fileInput.files[0]);
+            }
+        });
+    }
 
-    btnSample1080p.addEventListener('click', () => {
-        selectedFile = null;
-        dropzone.querySelector('div:first-of-type').textContent = 'Đã tạo ảnh mẫu phong cảnh Full HD 1080p (Sẵn sàng kích hoạt)';
-        appendLog('INFO', 'Đã sinh ảnh mẫu Full HD 1920x1080 trong bộ nhớ đệm.');
-    });
+    if (btnUploadSample) {
+        btnUploadSample.addEventListener('click', () => handleFileUpload(null, true));
+    }
 
-    btnProcessNormal.addEventListener('click', async () => {
+    async function handleFileUpload(fileObj, isSample = false) {
+        const isCold = chkColdStart ? chkColdStart.checked : false;
+        const sliderRam = document.getElementById('sliderRam');
+        const memoryMb = sliderRam ? sliderRam.value : 512;
+
+        logTelemetry('info', `Bắt đầu tải ảnh vào S3 Input Bucket (Cold Start: ${isCold}, RAM: ${memoryMb}MB)...`);
+        pulseNode('node-client', 'active');
+        pulseNode('node-s3-in', 'active', 1000);
+
         const formData = new FormData();
-        const isCold = chkSimColdStart.checked;
-        formData.append('is_cold', isCold ? 'true' : 'false');
-
-        if (selectedFile) {
-            formData.append('image', selectedFile);
-            formData.append('is_sample', 'false');
-        } else {
+        if (fileObj) {
+            formData.append('image', fileObj);
+        } else if (isSample) {
             formData.append('is_sample', 'true');
         }
-
-        appendLog('INFO', `Bắt đầu đẩy tệp lên S3 Input Bucket... (Giả lập Cold Start: ${isCold})`);
-        pulseNodes(['node-client', 'node-s3-in', 'node-sqs', 'node-lambda', 'node-storage'], 'pulse');
+        formData.append('is_cold', isCold ? 'true' : 'false');
+        formData.append('memory_mb', memoryMb);
 
         try {
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData
-            });
+            pulseNode('node-sqs', 'active', 1200);
+            pulseNode('node-lambda', 'active', 1500);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
 
-            if (res.ok && data.status === 'PROCESSED') {
-                currentHash = data.image_hash || data.hash;
-                txtCurrentHash.value = currentHash;
-
-                document.getElementById('imgComparisonBox').style.display = 'grid';
-                document.getElementById('metaResultBox').style.display = 'block';
-
-                // Display thumbnails
-                document.getElementById('previewThumb').src = data.thumbnail_base64;
-                document.getElementById('lblOrigInfo').textContent = `${data.orig_size} • ${data.orig_kb} KB (${data.orig_format})`;
-                document.getElementById('lblThumbInfo').textContent = `${data.thumb_size} • ${data.thumb_kb} KB (JPEG 85%)`;
-                document.getElementById('lblCompression').textContent = `Giảm -${data.compression_percent}% dung lượng`;
-
-                document.getElementById('metaJsonContent').textContent = JSON.stringify(data, null, 2);
-
-                appendLog('SUCCESS', `Lambda hoàn tất trong ${data.latency_ms} ms! Đã sinh thumbnail 300x300 và ghi DynamoDB ImageMetadata.`);
-                updateStatus();
-            } else if (data.status === 'SKIPPED_IDEMPOTENT') {
-                appendLog('IDEMPOTENT', `[IDEMPOTENT LOCK] ${data.message} (${data.latency_ms} ms)`);
-            } else {
-                appendLog('ERROR', `Lỗi xử lý: ${data.error || 'Unknown error'}`);
+            if (!res.ok) {
+                throw new Error(data.error || 'Lỗi xử lý tải ảnh');
             }
+
+            pulseNode('node-storage', 'active', 1500);
+
+            if (data.status === 'SKIPPED_IDEMPOTENT') {
+                logTelemetry('idempotent', `[IDEMPOTENT] Khóa nguyên tử chặn ảnh trùng lặp: ${data.hash.substring(0, 12)}... (${data.latency_ms} ms)`);
+                alert(`Khóa lũy đẳng phát hiện ảnh trùng lặp. Đã bỏ qua an toàn trong ${data.latency_ms} ms.`);
+                return;
+            }
+
+            lastUploadedHash = data.hash;
+            logTelemetry('success', `[SUCCESS] Tạo Thumbnail 300x300 thành công: ${data.thumb_key} (Nén: -${data.compression_percent}%, Trễ: ${data.latency_ms} ms)`);
+
+            // Display result card
+            const resultCard = document.getElementById('uploadResultCard');
+            if (resultCard) {
+                resultCard.style.display = 'block';
+                document.getElementById('imgThumbnailResult').src = data.thumbnail_base64;
+                document.getElementById('resFilename').textContent = data.filename;
+                document.getElementById('resDimensions').textContent = `${data.orig_size} ➔ ${data.thumb_size}`;
+                document.getElementById('resSize').textContent = `${data.orig_kb} KB ➔ ${data.thumb_kb} KB`;
+                document.getElementById('resCompression').textContent = `-${data.compression_percent}% dung lượng`;
+                document.getElementById('resLatency').textContent = `${data.latency_ms} ms (${data.is_cold ? 'Cold Start' : 'Warm Start'})`;
+                document.getElementById('resHash').textContent = data.hash;
+            }
+
+            refreshStatus();
         } catch (err) {
-            appendLog('ERROR', `Lỗi kết nối tới Serverless Engine: ${err.message}`);
-        }
-    });
-
-    // TAB 2: Idempotency Duplicate Re-send
-    const btnSendDuplicate = document.getElementById('btnSendDuplicate');
-    const btnGenNewHash = document.getElementById('btnGenNewHash');
-    const idempotentResultBox = document.getElementById('idempotentResultBox');
-
-    btnGenNewHash.addEventListener('click', () => {
-        currentHash = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-            .map(b => b.toString(16).padStart(2, '0')).join('');
-        txtCurrentHash.value = currentHash;
-        appendLog('INFO', `Đã sinh mã băm ngẫu nhiên mới: ${currentHash.substring(0, 16)}...`);
-    });
-
-    btnSendDuplicate.addEventListener('click', async () => {
-        if (!currentHash || currentHash.startsWith('(')) {
-            alert('Vui lòng tạo hoặc upload một ảnh ở Tab 1 trước!');
-            return;
-        }
-
-        appendLog('INFO', `Phát sinh sự kiện tải trùng lặp với SHA-256: ${currentHash.substring(0, 16)}...`);
-        pulseNodes(['node-client', 'node-s3-in', 'node-sqs', 'node-lambda'], 'idempotent');
-
-        try {
-            const res = await fetch('/api/simulate-duplicate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_hash: currentHash })
-            });
-            const data = await res.json();
-
-            idempotentResultBox.style.display = 'block';
-            document.getElementById('idempotentTitle').textContent = `✓ ${data.status} (Khóa Lũy Đẳng Nguyên Tử)`;
-            document.getElementById('idempotentMsg').textContent = data.message;
-            document.getElementById('idempotentLatency').textContent = `Thời gian từ chối xử lý: ${data.latency_ms} ms • Không tạo bản ghi trùng • Tiết kiệm 100% CPU`;
-
-            appendLog('IDEMPOTENT', `[ATOMIC LOCK] DynamoDB ném ConditionalCheckFailed. Bỏ qua xử lý an toàn trong ${data.latency_ms} ms!`);
-        } catch (err) {
-            appendLog('ERROR', `Lỗi kiểm tra Idempotency: ${err.message}`);
-        }
-    });
-
-    // TAB 3: Poison Pill & SQS DLQ Isolation
-    const btnPoisonMagicBytes = document.getElementById('btnPoisonMagicBytes');
-    const btnPoisonMalwareExt = document.getElementById('btnPoisonMalwareExt');
-    const btnTriggerPoison = document.getElementById('btnTriggerPoison');
-    const poisonResultBox = document.getElementById('poisonResultBox');
-    let currentPoisonType = 'corrupt_magic_bytes';
-
-    btnPoisonMagicBytes.addEventListener('click', () => {
-        currentPoisonType = 'corrupt_magic_bytes';
-        appendLog('INFO', 'Đã chọn kịch bản tệp hỏng cấu trúc header (Magic Bytes).');
-    });
-
-    btnPoisonMalwareExt.addEventListener('click', () => {
-        currentPoisonType = 'fake_executable_extension';
-        appendLog('INFO', 'Đã chọn kịch bản giả mạo file thực thi (.exe) thành đuôi .jpg.');
-    });
-
-    btnTriggerPoison.addEventListener('click', async () => {
-        appendLog('INFO', `Bơm tệp độc hại (${currentPoisonType}) vào pipeline...`);
-        pulseNodes(['node-client', 'node-s3-in', 'node-sqs', 'node-lambda', 'node-dlq'], 'error');
-
-        try {
-            const res = await fetch('/api/simulate-poison', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    poison_type: currentPoisonType,
-                    filename: currentPoisonType === 'fake_executable_extension' ? 'malware.exe.jpg' : 'corrupt_byte_payload.jpg'
-                })
-            });
-            const data = await res.json();
-
-            poisonResultBox.style.display = 'block';
-            document.getElementById('poisonErrorMsg').textContent = `Lỗi bắt được: ${data.error}`;
-            document.getElementById('poisonRetriesDetail').textContent = `Đã retry ${data.retries_attempted} lần có lùi số mũ (Backoff) thất bại -> Chuyển vào SQS DLQ: ${data.dlq_name} (Lưu trữ 14 ngày)`;
-
-            appendLog('DLQ', `[POISON PILL] Thư viện Pillow phát hiện file hỏng. Tự động cô lập vào SQS DLQ sau 3 lần retry!`);
-            updateStatus();
-        } catch (err) {
-            appendLog('ERROR', `Lỗi mô phỏng Poison Pill: ${err.message}`);
-        }
-    });
-
-    // TAB 4: Benchmark 100 Runs & Chart
-    const btnRunBenchmarkDataset = document.getElementById('btnRunBenchmarkDataset');
-    const btnExportCsv = document.getElementById('btnExportCsv');
-
-    async function loadBenchmarkData() {
-        appendLog('INFO', 'Đang tải dữ liệu thực nghiệm 100 lần đo từ kho dữ liệu chuẩn UTH...');
-        try {
-            const res = await fetch('/api/benchmark?mode=verified');
-            const data = await res.json();
-
-            document.getElementById('statP50').textContent = `${data.percentiles.p50} ms`;
-            document.getElementById('statP95').textContent = `${data.percentiles.p95} ms`;
-            document.getElementById('statSweetSpot').textContent = '512 MB';
-            document.getElementById('statErrorRate').textContent = `${data.error_rate}%`;
-
-            renderHistogram(data.runs, data.percentiles);
-            appendLog('SUCCESS', `Đã nạp 100 lần đo thực nghiệm! p50 = ${data.percentiles.p50} ms, p95 = ${data.percentiles.p95} ms, Chi phí 100k ảnh = $0.045.`);
-        } catch (err) {
-            appendLog('ERROR', `Lỗi tải benchmark: ${err.message}`);
+            logTelemetry('error', `[ERROR] Tải ảnh thất bại: ${err.message}`);
+            pulseNode('node-lambda', 'error', 2000);
+            alert(`Lỗi: ${err.message}`);
         }
     }
 
-    function renderHistogram(runs, percentiles) {
-        const warmRuns = runs.filter(r => r.status === 'SUCCESS' && !r.is_cold).map(r => r.total_latency_ms);
-        // Create histogram bins
-        const bins = [0, 20, 25, 30, 35, 40, 50, 75, 100, 300, 600];
-        const counts = new Array(bins.length - 1).fill(0);
+    // 2. IDEMPOTENT DUPLICATE TEST
+    const btnTestDuplicate = document.getElementById('btnTestDuplicate');
+    if (btnTestDuplicate) {
+        btnTestDuplicate.addEventListener('click', async () => {
+            if (!lastUploadedHash) {
+                alert('Vui lòng tải ít nhất một bức ảnh trước ở Kịch bản 1 để lấy mã băm SHA-256!');
+                return;
+            }
 
-        warmRuns.forEach(d => {
-            for (let i = 0; i < bins.length - 1; i++) {
-                if (d >= bins[i] && d < bins[i+1]) {
-                    counts[i]++;
-                    break;
+            logTelemetry('info', `Mô phỏng mạng gửi lặp sự kiện mang hash ${lastUploadedHash.substring(0, 12)}...`);
+            pulseNode('node-client', 'active');
+            pulseNode('node-lambda', 'active', 800);
+
+            try {
+                const res = await fetch('/api/simulate-duplicate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_hash: lastUploadedHash })
+                });
+                const data = await res.json();
+
+                pulseNode('node-storage', 'active', 800);
+
+                if (data.status === 'SKIPPED_IDEMPOTENT') {
+                    logTelemetry('idempotent', `[IDEMPOTENT LOCK] ConditionalCheckFailedException kích hoạt. Từ chối trong ${data.latency_ms} ms.`);
+                    const dupCard = document.getElementById('duplicateResultCard');
+                    if (dupCard) {
+                        dupCard.style.display = 'block';
+                        document.getElementById('resDupLatency').textContent = `${data.latency_ms} ms (< 2.5 ms)`;
+                    }
                 }
+                refreshStatus();
+            } catch (err) {
+                logTelemetry('error', `[ERROR] Lỗi kiểm thử trùng lặp: ${err.message}`);
             }
         });
+    }
 
-        const labels = bins.slice(0, -1).map((b, i) => `${b}-${bins[i+1]}ms`);
+    // 3. POISON PILL & TIMEOUT DLQ SIMULATION
+    const btnSimulatePoison = document.getElementById('btnSimulatePoison');
+    const btnSimulateTimeout = document.getElementById('btnSimulateTimeout');
 
-        if (chartInstance) {
-            chartInstance.destroy();
+    if (btnSimulatePoison) {
+        btnSimulatePoison.addEventListener('click', async () => {
+            logTelemetry('warn', 'Bắt đầu gửi tệp độc hại / hỏng cấu trúc (Poison Pill)...');
+            pulseNode('node-client', 'active');
+            pulseNode('node-lambda', 'error', 1500);
+
+            try {
+                const res = await fetch('/api/simulate-poison', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ poison_type: 'corrupt_magic_bytes', filename: 'malformed_payload.exe.jpg' })
+                });
+                const data = await res.json();
+
+                pulseNode('node-dlq', 'error', 2000);
+                logTelemetry('error', `[DLQ QUARANTINE] Tệp hỏng đã retry 3 lần thất bại (Exponential Backoff). Đã cô lập vào ${data.dlq_name}`);
+
+                const poisonCard = document.getElementById('poisonResultCard');
+                if (poisonCard) {
+                    poisonCard.style.display = 'block';
+                    document.getElementById('poisonHeading').textContent = '⚠️ CÔ LẬP SỰ CỐ TỆP HỎNG VÀO SQS DLQ THÀNH CÔNG';
+                    document.getElementById('resPoisonError').textContent = data.error;
+                    document.getElementById('resPoisonRetries').textContent = '3 lần (Exponential Backoff: 50ms, 100ms, 200ms)';
+                    document.getElementById('resPoisonDlq').textContent = `${data.dlq_name} (Lưu giữ 14 ngày)`;
+                }
+                refreshStatus();
+            } catch (err) {
+                logTelemetry('error', `[ERROR] Lỗi mô phỏng Poison Pill: ${err.message}`);
+            }
+        });
+    }
+
+    if (btnSimulateTimeout) {
+        btnSimulateTimeout.addEventListener('click', async () => {
+            logTelemetry('warn', 'Mô phỏng tác vụ xử lý vượt quá giới hạn Timeout 30 giây...');
+            pulseNode('node-lambda', 'error', 1500);
+
+            try {
+                const res = await fetch('/api/simulate-timeout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: 'heavy_unbounded_photo.jpg' })
+                });
+                const data = await res.json();
+
+                pulseNode('node-dlq', 'error', 2000);
+                logTelemetry('error', `[TIMEOUT DLQ] Lambda TimeoutError sau 30s. Đã retry 3 lần và đưa vào ${data.dlq_name}`);
+
+                const poisonCard = document.getElementById('poisonResultCard');
+                if (poisonCard) {
+                    poisonCard.style.display = 'block';
+                    document.getElementById('poisonHeading').textContent = '⏳ CÔ LẬP SỰ CỐ TIMEOUT VÀO SQS DLQ THÀNH CÔNG';
+                    document.getElementById('resPoisonError').textContent = data.error;
+                    document.getElementById('resPoisonRetries').textContent = '3 lần thử lại (100ms, 200ms, 400ms)';
+                    document.getElementById('resPoisonDlq').textContent = `${data.dlq_name} (Lưu giữ 14 ngày)`;
+                }
+                refreshStatus();
+            } catch (err) {
+                logTelemetry('error', `[ERROR] Lỗi mô phỏng Timeout: ${err.message}`);
+            }
+        });
+    }
+
+    // 4. BENCHMARK 100 RUNS & CHART.JS
+    const btnRunBenchmark = document.getElementById('btnRunBenchmark');
+    if (btnRunBenchmark) {
+        btnRunBenchmark.addEventListener('click', async () => {
+            logTelemetry('info', 'Đang tải tập dữ liệu chuẩn 100 lần gọi đo đạc từ AWS Cloud (benchmark_100_runs.csv)...');
+            try {
+                const res = await fetch('/api/benchmark?mode=verified');
+                const data = await res.json();
+
+                logTelemetry('success', `[BENCHMARK] Hoàn thành đo 100 lần gọi: p50=${data.percentiles.p50}ms, p95=${data.percentiles.p95}ms, Error Rate=${data.error_rate}%`);
+
+                document.getElementById('benchmarkStatsCard').style.display = 'block';
+                document.getElementById('valP50').textContent = `${data.percentiles.p50} ms`;
+                document.getElementById('valP90').textContent = `${data.percentiles.p90} ms`;
+                document.getElementById('valP95').textContent = `${data.percentiles.p95} ms`;
+                document.getElementById('valP99').textContent = `${data.percentiles.p99} ms`;
+                document.getElementById('valErrorRate').textContent = `${data.error_rate.toFixed(2)}%`;
+
+                renderLatencyHistogram(data.runs, data.percentiles);
+            } catch (err) {
+                logTelemetry('error', `[ERROR] Lỗi chạy benchmark: ${err.message}`);
+            }
+        });
+    }
+
+    function renderLatencyHistogram(runs, percentiles) {
+        const ctx = document.getElementById('chartLatencyHistogram');
+        if (!ctx) return;
+
+        const warmDurations = runs
+            .filter(r => r.status === 'SUCCESS' && r.total_latency_ms < 150)
+            .map(r => r.total_latency_ms);
+
+        // Group into buckets of 5ms
+        const buckets = {};
+        for (let b = 20; b <= 60; b += 5) {
+            buckets[`${b}-${b+4}ms`] = 0;
+        }
+        warmDurations.forEach(d => {
+            const b = Math.floor(d / 5) * 5;
+            const key = `${b}-${b+4}ms`;
+            if (buckets[key] !== undefined) buckets[key]++;
+            else buckets['>60ms'] = (buckets['>60ms'] || 0) + 1;
+        });
+
+        const labels = Object.keys(buckets);
+        const values = Object.values(buckets);
+
+        if (latencyChartInstance) {
+            latencyChartInstance.destroy();
         }
 
-        const ctx = document.getElementById('benchmarkChart').getContext('2d');
-        chartInstance = new Chart(ctx, {
+        latencyChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Số Lượng Request',
-                    data: counts,
-                    backgroundColor: 'rgba(56, 189, 248, 0.7)',
-                    borderColor: '#38bdf8',
-                    borderWidth: 1
+                    label: 'Số lượt yêu cầu Warm (Invocations)',
+                    data: values,
+                    backgroundColor: '#38bdf8',
+                    borderRadius: 4
                 }]
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: { display: false },
-                    title: {
-                        display: true,
-                        text: `Phân Phối Độ Trễ (p50 = ${percentiles.p50} ms | p95 = ${percentiles.p95} ms | Sweet Spot 512MB RAM)`,
-                        color: '#94a3b8',
-                        font: { size: 12, weight: 'bold' }
-                    }
-                },
+                maintainAspectRatio: false,
                 scales: {
-                    x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
-                    y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } }
+                    x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                    y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                },
+                plugins: {
+                    legend: { labels: { color: '#f8fafc' } }
                 }
             }
         });
     }
 
-    btnRunBenchmarkDataset.addEventListener('click', loadBenchmarkData);
+    // 5. RAM SLIDER & PACKAGE SIZE SIMULATION
+    const sliderRam = document.getElementById('sliderRam');
+    const dispRamMb = document.getElementById('dispRamMb');
+    const btnPkgPillow = document.getElementById('btnPkgPillow');
+    const btnPkgOpenCv = document.getElementById('btnPkgOpenCv');
 
-    btnExportCsv.addEventListener('click', () => {
-        window.open('/api/benchmark?mode=verified', '_blank');
-        appendLog('INFO', 'Đã xuất dữ liệu đo 100 lần gọi dưới dạng JSON/CSV.');
-    });
-
-    // SRE DLQ Modal Management
-    const btnOpenDlqModal = document.getElementById('btnOpenDlqModal');
-    const dlqModalOverlay = document.getElementById('dlqModalOverlay');
-    const btnCloseDlqModal = document.getElementById('btnCloseDlqModal');
-    const btnCloseDlqModalBtn = document.getElementById('btnCloseDlqModalBtn');
-    const btnRedriveDlq = document.getElementById('btnRedriveDlq');
-    const dlqMessageList = document.getElementById('dlqMessageList');
-
-    async function openDlqModal() {
-        dlqModalOverlay.classList.add('active');
+    async function updateRamTradeoff(ramMb, pkgMb) {
         try {
-            const res = await fetch('/api/dlq');
+            const res = await fetch(`/api/ram-tradeoff?memory_mb=${ramMb}&package_mb=${pkgMb}`);
             const data = await res.json();
-            if (data.count === 0) {
-                dlqMessageList.innerHTML = '<em>(Không có thông điệp trong hàng đợi lỗi SQS DLQ)</em>';
+
+            if (dispRamMb) dispRamMb.textContent = `${data.memory_mb} MB`;
+            if (lblActiveRam) lblActiveRam.textContent = `${data.memory_mb} MB`;
+            document.getElementById('lblRamVcpu').textContent = `${data.vcpu} vCPU`;
+            document.getElementById('lblRamCold').textContent = `${data.cold_start_ms} ms`;
+            document.getElementById('lblRamWarm').textContent = `${data.warm_start_ms} ms (${data.speedup_vs_128mb} so với 128MB)`;
+            document.getElementById('lblRamCost').textContent = `$${data.cost_per_100k_req.toFixed(4)} USD (${data.cost_diff_vs_128mb})`;
+            
+            const lblEval = document.getElementById('lblRamEval');
+            if (data.is_sweet_spot) {
+                lblEval.textContent = '★ ĐIỂM NGỌT (SWEET SPOT): Tăng tốc 360% với chi phí chỉ tăng 8%.';
+                lblEval.style.color = 'var(--success)';
             } else {
-                dlqMessageList.innerHTML = data.messages.map(m => `
-                    <div style="border-bottom: 1px solid #334155; padding: 0.4rem 0;">
-                        <div><strong>ID:</strong> ${m.id}</div>
-                        <div><strong>File:</strong> ${m.body.filename} (${m.body.poison_type})</div>
-                        <div><strong>Error:</strong> ${m.body.error}</div>
-                    </div>
-                `).join('');
+                lblEval.textContent = data.recommendation;
+                lblEval.style.color = 'var(--text-secondary)';
             }
         } catch (e) {
-            console.error('Fetch DLQ failed:', e);
+            console.error('Lỗi tính toán RAM tradeoff:', e);
         }
     }
 
-    btnOpenDlqModal.addEventListener('click', openDlqModal);
-    btnCloseDlqModal.addEventListener('click', () => dlqModalOverlay.classList.remove('active'));
-    btnCloseDlqModalBtn.addEventListener('click', () => dlqModalOverlay.classList.remove('active'));
+    if (sliderRam) {
+        sliderRam.addEventListener('input', (e) => {
+            updateRamTradeoff(e.target.value, selectedPackageMb);
+        });
+    }
 
-    btnRedriveDlq.addEventListener('click', async () => {
-        appendLog('INFO', 'Kích hoạt quy trình SRE DLQ Redrive: Vá lỗi và tái xử lý...');
+    if (btnPkgPillow && btnPkgOpenCv) {
+        btnPkgPillow.addEventListener('click', () => {
+            selectedPackageMb = 15;
+            btnPkgPillow.className = 'btn btn-sm btn-primary';
+            btnPkgOpenCv.className = 'btn btn-sm';
+            btnPkgOpenCv.style.border = '1px solid var(--border)';
+            updateRamTradeoff(sliderRam.value, 15);
+            logTelemetry('info', 'Đã chuyển sang gói thư viện Pillow tinh gọn (15MB - Cold Start ~520ms).');
+        });
+        btnPkgOpenCv.addEventListener('click', () => {
+            selectedPackageMb = 150;
+            btnPkgOpenCv.className = 'btn btn-sm btn-primary';
+            btnPkgPillow.className = 'btn btn-sm';
+            btnPkgPillow.style.border = '1px solid var(--border)';
+            updateRamTradeoff(sliderRam.value, 150);
+            logTelemetry('warn', 'Đã chuyển sang gói thư viện OpenCV đầy đủ (150MB - Cold Start tăng vọt lên ~3,000ms).');
+        });
+    }
+
+    // 6. SECURITY AUDIT & SRE RUNBOOK REDRIVE
+    const btnRunSecurityAudit = document.getElementById('btnRunSecurityAudit');
+    const btnTriggerRedrive = document.getElementById('btnTriggerRedrive');
+    const btnOpenDlqModal = document.getElementById('btnOpenDlqModal');
+    const btnCloseDlqModal = document.getElementById('btnCloseDlqModal');
+    const modalDlqOverlay = document.getElementById('modalDlqOverlay');
+    const btnModalRedrive = document.getElementById('btnModalRedrive');
+
+    if (btnRunSecurityAudit) {
+        btnRunSecurityAudit.addEventListener('click', async () => {
+            logTelemetry('info', 'Bắt đầu chạy kịch bản quét an ninh tự động security_audit.py...');
+            try {
+                const res = await fetch('/api/security-audit');
+                const data = await res.json();
+                logTelemetry('success', `[AUDIT PASSED] Điểm đánh giá: ${data.score}. 0 lỗ hổng bảo mật.`);
+
+                const auditBox = document.getElementById('securityAuditResult');
+                const auditList = document.getElementById('auditCheckList');
+                if (auditBox && auditList) {
+                    auditBox.style.display = 'block';
+                    auditList.innerHTML = '';
+                    data.checks.forEach(c => {
+                        const item = document.createElement('div');
+                        item.style.cssText = 'background: var(--bg-card); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 0.75rem;';
+                        item.innerHTML = `<div style="font-weight: 700; color: var(--success);">${c.id}: ${c.title} — ${c.status}</div>
+                                          <div style="color: var(--text-secondary); margin-top: 0.2rem;">${c.details}</div>`;
+                        auditList.appendChild(item);
+                    });
+                }
+            } catch (e) {
+                logTelemetry('error', `Lỗi kiểm tra bảo mật: ${e.message}`);
+            }
+        });
+    }
+
+    async function loadDlqMessages() {
+        const msgList = document.getElementById('dlqMessageList');
+        if (!msgList) return;
+        try {
+            const res = await fetch('/api/dlq');
+            const data = await res.json();
+            if (!data.messages || data.messages.length === 0) {
+                msgList.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 1rem;">Hàng đợi lỗi hiện đang rỗng (Depth = 0).</div>';
+                return;
+            }
+            let html = '';
+            data.messages.forEach(m => {
+                const p = m.payload || {};
+                html += `<div class="dlq-msg-item">
+                    <div style="color: var(--danger); font-weight: 700;">ID: ${m.message_id} | Retries: ${p.retries_attempted || 3}</div>
+                    <div style="color: var(--text-secondary); margin: 0.2rem 0;">Tệp: ${p.filename || 'unknown'} | Hash: ${(p.image_hash || '').substring(0, 16)}...</div>
+                    <div style="color: #f87171;">Lỗi: ${p.error || 'Unknown Error'}</div>
+                </div>`;
+            });
+            msgList.innerHTML = html;
+        } catch (e) {
+            console.error('Lỗi nạp DLQ:', e);
+        }
+    }
+
+    if (btnOpenDlqModal && modalDlqOverlay) {
+        btnOpenDlqModal.addEventListener('click', () => {
+            modalDlqOverlay.style.display = 'flex';
+            loadDlqMessages();
+        });
+    }
+
+    if (btnCloseDlqModal && modalDlqOverlay) {
+        btnCloseDlqModal.addEventListener('click', () => {
+            modalDlqOverlay.style.display = 'none';
+        });
+    }
+
+    async function executeRedrive() {
+        logTelemetry('warn', 'Bắt đầu quy trình SRE DLQ Redrive: Bơm ngược thông điệp từ image-dlq về hàng đợi chính...');
         try {
             const res = await fetch('/api/dlq/redrive', { method: 'POST' });
             const data = await res.json();
-            appendLog('SUCCESS', `[SRE REDRIVE] ${data.message}`);
-            dlqModalOverlay.classList.remove('active');
-            updateStatus();
-        } catch (err) {
-            appendLog('ERROR', `Lỗi Redrive DLQ: ${err.message}`);
+            logTelemetry('success', `[REDRIVE SUCCESS] ${data.message}`);
+            alert(data.message);
+            if (modalDlqOverlay) modalDlqOverlay.style.display = 'none';
+            refreshStatus();
+        } catch (e) {
+            logTelemetry('error', `Lỗi redrive DLQ: ${e.message}`);
         }
-    });
+    }
 
-    // Clear log button
-    document.getElementById('btnClearLog').addEventListener('click', () => {
-        consoleOutput.innerHTML = '';
-        appendLog('INFO', 'Đã dọn sạch nhật ký thực thi.');
-    });
+    if (btnTriggerRedrive) btnTriggerRedrive.addEventListener('click', executeRedrive);
+    if (btnModalRedrive) btnModalRedrive.addEventListener('click', executeRedrive);
 
-    // Auto-load benchmark chart on start
-    loadBenchmarkData();
+    // Console controls
+    const btnClearLogs = document.getElementById('btnClearLogs');
+    const btnExportLogs = document.getElementById('btnExportLogs');
+    if (btnClearLogs) {
+        btnClearLogs.addEventListener('click', () => {
+            if (consoleTerminal) consoleTerminal.innerHTML = '';
+        });
+    }
+    if (btnExportLogs) {
+        btnExportLogs.addEventListener('click', () => {
+            if (!consoleTerminal) return;
+            const text = consoleTerminal.innerText;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `serverless_lab_telemetry_${Date.now()}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    // Initialize on load
+    refreshStatus();
+    setInterval(refreshStatus, 8000);
 });
