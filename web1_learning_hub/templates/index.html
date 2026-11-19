@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Học viện Kiến thức & Thuật toán Serverless - Đề tài 9 (Learning Hub :5001)</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Top Header -->
+    <header class="top-header">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="brand-title">Học Viện Kiến Thức & Thuật Toán Serverless</span>
+            <span class="port-badge">:5001</span>
+        </div>
+        <div>
+            <a href="http://localhost:5002" target="_blank" class="nav-link-btn">
+                🔬 Mở Web 2: Phòng Thí nghiệm Live Lab (:5002) →
+            </a>
+        </div>
+    </header>
+
+    <div class="layout-wrapper">
+        <!-- Sticky Navigation Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-heading">Mục Lục Học Tập (7 Module)</div>
+            <a href="#module-1" class="nav-item active">01. Câu Hỏi Nghiên Cứu</a>
+            <a href="#module-2" class="nav-item">02. Lý Thuyết FaaS & Sự Kiện</a>
+            <a href="#module-3" class="nav-item">03. Thuật Toán Lũy Đẳng & DLQ</a>
+            <a href="#module-4" class="nav-item">04. Code Walkthrough Tương Tác</a>
+            <a href="#module-5" class="nav-item">05. Bảo Mật OWASP Serverless</a>
+            <a href="#module-6" class="nav-item">06. Thực Nghiệm & Chi Phí 512MB</a>
+            <a href="#module-7" class="nav-item">07. SRE Runbook Xử Lý DLQ</a>
+            <div style="margin-top: 1.5rem; padding: 0.75rem; background-color: var(--bg-card); border-radius: 6px; border: 1px solid var(--border-subtle); font-size: 0.75rem; color: var(--text-muted);">
+                <div><strong>Đề tài 9:</strong> Xử lý ảnh Serverless & Cold Start</div>
+                <div style="margin-top: 0.25rem;"><strong>GVHD:</strong> TS. Lê Quốc Tuấn (UTH)</div>
+                <div style="margin-top: 0.25rem;"><strong>Nhóm SV:</strong> Lê Doãn Đạt - Trần Ngọc Lâm - Vũ Thành Đạt</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content-area">
+            <!-- MODULE 1 -->
+            <section id="module-1" class="article-section">
+                <div class="section-tag">Module 01 • Tổng Quan & Đặt Vấn Đề</div>
+                <h1 class="section-title">Câu Hỏi Nghiên Cứu & 3 Mục Tiêu Cốt Lõi</h1>
+                <div class="prose">
+                    Trong kỷ nguyên điện toán phân tán, lưu lượng tệp tin do người dùng tải lên thường xuyên xuất hiện dưới dạng các nhịp không đều và đột biến (<strong>Spike Load / Bursty Traffic</strong>).
+                </div>
+                <div class="callout">
+                    <div class="callout-title">Câu hỏi nghiên cứu cốt lõi:</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; color: #f8fafc;">
+                        "Khi tệp được tải lên theo các nhịp không đều, kiến trúc hướng sự kiện có thể tự động xử lý tin cậy và kiểm soát chi phí ra sao?"
+                    </div>
+                </div>
+                <div class="prose">
+                    Để giải quyết bài toán này, đề tài đặt ra 3 mục tiêu kỹ thuật then chốt:
+                </div>
+                <ul style="margin-left: 1.5rem; color: #cbd5e1; font-size: 0.95rem; line-height: 1.8;">
+                    <li><strong>Mục tiêu 1:</strong> Thiết kế chuỗi sự kiện hoàn chỉnh từ Object Storage (S3 Input) $\rightarrow$ Hàng đợi đệm tải SQS $\rightarrow$ Hàm xử lý AWS Lambda $\rightarrow$ Kho metadata DynamoDB & S3 Thumbnails.</li>
+                    <li><strong>Mục tiêu 2:</strong> Đảm bảo hàm có tính lũy đẳng (Idempotent) thông qua Khóa nguyên tử DynamoDB, xử lý retry with exponential backoff và chuyển tệp lỗi vào Dead-Letter Queue (SQS DLQ).</li>
+                    <li><strong>Mục tiêu 3:</strong> Đo lường định lượng hiện tượng Cold Start, xác lập bảng phân vị độ trễ ($p_{50}, p_{95}$) và dự toán chi phí theo mô hình Pay-as-you-go cho 3 mức tải.</li>
+                </ul>
+                <a href="http://localhost:5002" target="_blank" class="cross-link-pill">
+                    ⚡ Thử nghiệm kịch bản tải ảnh trên Live Lab (:5002) →
+                </a>
+            </section>
+
+            <!-- MODULE 2 -->
+            <section id="module-2" class="article-section">
+                <div class="section-tag">Module 02 • Cơ Sở Lý Thuyết</div>
+                <h2 class="section-title">FaaS & Kiến Trúc Hướng Sự Kiện Tin Cậy</h2>
+                <div class="prose">
+                    Mô hình <strong>Function-as-a-Service (FaaS)</strong> thay đổi hoàn toàn cách tính toán truyền thống bằng 4 nguyên lý:
+                </div>
+                <table class="tech-table">
+                    <thead>
+                        <tr>
+                            <th>Khái Niệm</th>
+                            <th>Đặc Điểm Trong Hệ Thống Serverless</th>
+                            <th>Ý Nghĩa Nghiệp Vụ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Event Source & Trigger</strong></td>
+                            <td>S3 Input Bucket phát sự kiện <code>s3:ObjectCreated:*</code></td>
+                            <td>Kích hoạt hàm tự động, không cần thăm dò (No Polling).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Stateless Execution</strong></td>
+                            <td>Container Lambda không lưu trạng thái phiên</td>
+                            <td>Trạng thái được phân tách hoàn toàn sang DynamoDB và S3.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>At-Least-Once Delivery</strong></td>
+                            <td>Mạng phân tán chỉ cam kết gửi "Ít nhất một lần"</td>
+                            <td>Bắt buộc hàm xử lý phải có tính Lũy Đẳng (Idempotency).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Scale-to-Zero</strong></td>
+                            <td>Tự hủy container khi không có sự kiện</td>
+                            <td>Chi phí $0 tuyệt đối khi nhàn rỗi, triệt tiêu lãng phí EC2.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="prose">
+                    <strong>Bản chất Cold Start:</strong> Khi có sự kiện đầu tiên sau khoảng nghỉ hoặc khi mở rộng container mới, AWS Lambda phải cấp phát MicroVM Firecracker, nạp Python 3.11 Runtime và tải thư viện đồ họa Pillow (khoảng 15MB) vào RAM. Giai đoạn <code>InitDuration</code> này chiếm trung bình <strong>520 ms</strong>, khiến Cold Start chậm hơn Warm Invocation (~27 ms) tới <strong>20.5 lần</strong>.
+                </div>
+            </section>
+
+            <!-- MODULE 3 -->
+            <section id="module-3" class="article-section">
+                <div class="section-tag">Module 03 • Thuật Toán & Độ Tin Cậy</div>
+                <h2 class="section-title">Thuật Toán Khóa Lũy Đẳng Nguyên Tử & SQS DLQ</h2>
+                <div class="prose">
+                    Nguyên lý lũy đẳng: Một hàm $f$ được gọi là lũy đẳng nếu $f(f(x)) = f(x)$. Dù mạng có gửi lặp lại cùng một sự kiện 10 lần, hệ thống chỉ sinh đúng 1 thumbnail và 1 bản ghi nghiệp vụ duy nhất.
+                </div>
+                <div class="callout" style="border-left-color: var(--warning);">
+                    <div class="callout-title" style="color: var(--warning);">Cạm bẫy Race Condition của phương pháp Check-then-Act:</div>
+                    <div style="font-size: 0.9rem;">
+                        Nếu dùng <code>getItem</code> kiểm tra trước rồi mới <code>putItem</code>, khi 2 sự kiện trùng đến đồng thời trong cùng 1ms, cả 2 container đều thấy chưa có bản ghi và cả 2 đều resize ảnh $\rightarrow$ vỡ tính lũy đẳng!
+                    </div>
+                </div>
+                <div class="prose">
+                    <strong>Giải pháp Khóa Nguyên Tử trên DynamoDB:</strong> Sử dụng biểu thức điều kiện:
+                    <code style="background: #0f172a; color: #38bdf8; padding: 0.2rem 0.5rem; border-radius: 4px; font-family: var(--mono-font);">ConditionExpression: attribute_not_exists(image_hash) OR status = FAILED</code>
+                    Khi sự kiện thứ hai đến, DynamoDB từ chối ở cấp độ lưu trữ bằng lỗi <code>ConditionalCheckFailedException</code>, Lambda bắt lỗi và kết thúc ngay trong <strong>&lt; 2.5 ms</strong>.
+                </div>
+                <a href="http://localhost:5002" target="_blank" class="cross-link-pill">
+                    🔄 Kiểm chứng khóa lũy đẳng trực tiếp trên Live Lab (:5002) →
+                </a>
+            </section>
+
+            <!-- MODULE 4 -->
+            <section id="module-4" class="article-section">
+                <div class="section-tag">Module 04 • Trực Quan Hóa Mã Nguồn</div>
+                <h2 class="section-title">Bộ Trình Diễn Code Tương Tác (Code Walkthrough)</h2>
+                <div class="prose">
+                    Nhấp vào từng bước kỹ thuật bên dưới để xem trực tiếp đoạn mã nguồn tương ứng trong hệ thống và chú giải cơ chế vận hành:
+                </div>
+
+                <div class="walkthrough-container">
+                    <div class="step-list">
+                        <button class="step-btn active" data-snippet="idempotency_lock">
+                            1. Khóa Lũy Đẳng Nguyên Tử (DynamoDB)
+                        </button>
+                        <button class="step-btn" data-snippet="iam_least_privilege">
+                            2. Phân Quyền IAM Tối Thiểu (Terraform)
+                        </button>
+                        <button class="step-btn" data-snippet="sqs_dlq_redrive">
+                            3. SQS DLQ & Cơ Chế Redrive (HCL)
+                        </button>
+                        <button class="step-btn" data-snippet="pillow_resize_safe">
+                            4. An Toàn Bộ Nhớ /tmp & Pillow (Python)
+                        </button>
+                    </div>
+
+                    <div class="code-viewer">
+                        <div class="code-header">
+                            <span id="lblSnippetFile">src/lambda_function.py</span>
+                            <span id="lblSnippetLang">Python 3.11</span>
+                        </div>
+                        <pre class="code-pre" id="codePreViewer">// Đang nạp mã nguồn...</pre>
+                        <div class="code-annotation" id="codeAnnotation">
+                            Chú giải kỹ thuật sẽ hiển thị tại đây.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MODULE 5 -->
+            <section id="module-5" class="article-section">
+                <div class="section-tag">Module 05 • An Toàn Thông Tin</div>
+                <h2 class="section-title">Mô Hình Bảo Mật Chuẩn OWASP Serverless Top 10</h2>
+                <div class="prose">
+                    Hệ thống áp dụng nghiêm ngặt các biện pháp phòng vệ theo chuẩn an ninh công nghiệp:
+                </div>
+                <ul style="margin-left: 1.5rem; color: #cbd5e1; font-size: 0.95rem; line-height: 1.8;">
+                    <li><strong>SAS-01 (IAM Least Privilege):</strong> Triệt tiêu toàn bộ <code>Action: "*"</code>. Cấp đúng 6 Statement độc lập phân định rõ quyền đọc trên Input Bucket và quyền ghi trên Output Bucket.</li>
+                    <li><strong>SAS-02 (Zero Hardcoded Secrets):</strong> Không lưu Access Key/Secret Key trong mã nguồn Git. Sử dụng 100% IAM Execution Role với STS Temporary Token tự động xoay vòng.</li>
+                    <li><strong>SAS-03 (Sensitive Data Leakage):</strong> Mã hóa At-Rest toàn bộ dữ liệu trên S3 và DynamoDB bằng thuật toán chuẩn AES-256 (SSE-S3).</li>
+                    <li><strong>SAS-05 (Event Injection & Path Traversal):</strong> Xác thực trực tiếp cấu trúc nhị phân của ảnh qua <code>Image.verify()</code>, kiểm tra ngưỡng tối đa <code>MAX_IMAGE_PIXELS = 50_000_000</code> chống Image Bomb / Memory Exhaustion.</li>
+                    <li><strong>Xử lý Bộ nhớ Tạm:</strong> Đọc ghi byte stream thuần túy trong RAM bằng <code>io.BytesIO()</code>, khối <code>finally</code> dọn sạch <code>/tmp</code> triệt tiêu nguy cơ rò rỉ dữ liệu nhạy cảm giữa các lần gọi ấm.</li>
+                </ul>
+            </section>
+
+            <!-- MODULE 6 -->
+            <section id="module-6" class="article-section">
+                <div class="section-tag">Module 06 • Dữ Liệu Thực Nghiệm</div>
+                <h2 class="section-title">Đo Lường Định Lượng, Điểm Ngọt RAM 512MB & Chi Phí</h2>
+                <div class="prose">
+                    Kết quả thực nghiệm trên 100 lần gọi đo đạc từ môi trường đám mây cho thấy các chỉ số phân vị chuẩn xác:
+                </div>
+                <table class="tech-table">
+                    <thead>
+                        <tr>
+                            <th>Chỉ Số Phân Vị</th>
+                            <th>Thời Gian Đáp Ứng</th>
+                            <th>Ý Nghĩa Kỹ Thuật</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>p50 (Trung vị)</strong></td>
+                            <td><strong style="color: var(--primary);">30.3 ms</strong></td>
+                            <td>50% yêu cầu được xử lý cực nhanh trong trạng thái ấm (Warm).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>p90</strong></td>
+                            <td><strong>36.08 ms</strong></td>
+                            <td>Hệ thống duy trì độ trễ ổn định ở hầu hết mọi tác vụ.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>p95 (Đuôi trễ)</strong></td>
+                            <td><strong style="color: var(--warning);">289.5 ms</strong></td>
+                            <td>Bắt đầu xuất hiện các đợt cấp phát container mới khi có tải đột biến.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>p99 (Đỉnh trễ)</strong></td>
+                            <td><strong style="color: var(--danger);">589.20 ms</strong></td>
+                            <td>Phản ánh trường hợp Cold Start hoàn toàn (Init container + nạp Pillow).</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="prose">
+                    <strong>Khảo sát Điểm Ngọt Sweet Spot 512MB RAM:</strong> Trong AWS Lambda, năng lực CPU tỷ lệ thuận với RAM. Nâng từ 128MB lên 512MB giúp giảm độ trễ 88% (từ 256ms xuống 29ms). Tuy nhiên, trên 512MB (1024MB hay 2048MB), tốc độ chỉ giảm thêm vài ms do nghẽn I/O bộ nhớ trong khi chi phí tăng gấp đôi. Do đó, <strong>512MB RAM là điểm tối ưu tuyệt đối</strong> giữa hiệu năng và chi phí.
+                </div>
+                <div class="prose">
+                    <strong>Ước tính chi phí 3 mức tải:</strong>
+                    Mức thấp 10k ảnh (<strong>$0.004</strong>) • Mức vừa 100k ảnh (<strong>$0.045</strong>) • Mức cao 1M ảnh (<strong>$0.452</strong>) — tiết kiệm hơn 95% so với thuê máy chủ EC2 t2.micro ($10/tháng).
+                </div>
+                <a href="http://localhost:5002" target="_blank" class="cross-link-pill">
+                    📊 Xem biểu đồ phân phối độ trễ trên Live Lab (:5002) →
+                </a>
+            </section>
+
+            <!-- MODULE 7 -->
+            <section id="module-7" class="article-section">
+                <div class="section-tag">Module 07 • Vận Hành Hệ Thống</div>
+                <h2 class="section-title">Sổ Tay Vận Hành SRE Runbook Xử Lý Sự Cố DLQ</h2>
+                <div class="prose">
+                    Hàng đợi Dead-Letter Queue (SQS DLQ) lưu trữ thông điệp lỗi trong 14 ngày. Quy trình SRE gồm 3 bước chuẩn hóa:
+                </div>
+                <div class="callout" style="border-left-color: var(--danger);">
+                    <div class="callout-title" style="color: var(--danger);">Quy trình 3 bước xử lý sự cố chuẩn SRE:</div>
+                    <ol style="margin-left: 1.25rem; font-size: 0.9rem; line-height: 1.8;">
+                        <li><strong>Bước 1 (Phát hiện & Cảnh báo):</strong> CloudWatch Alarm kích hoạt khi <code>ApproximateNumberOfMessagesVisible &gt; 0</code>.</li>
+                        <li><strong>Bước 2 (Điều tra nguyên nhân RCA):</strong> Kỹ sư kiểm tra payload thông điệp lỗi: nếu là tệp giả mạo $\rightarrow$ xóa bỏ; nếu là lỗi timeout do ảnh lớn $\rightarrow$ nâng RAM Lambda trong <code>terraform/lambda.tf</code>.</li>
+                        <li><strong>Bước 3 (Khắc phục & Redrive):</strong> Kích hoạt tính năng <strong>SQS DLQ Redrive</strong> tự động bơm ngược thông điệp về hàng đợi nguồn để xử lý lại mà không làm mất mát giao dịch của khách hàng.</li>
+                    </ol>
+                </div>
+                <a href="http://localhost:5002" target="_blank" class="cross-link-pill">
+                    📦 Thử nghiệm quy trình DLQ Redrive trên Live Lab (:5002) →
+                </a>
+            </section>
+        </main>
+    </div>
+
+    <!-- JavaScript Controller -->
+    <script src="/static/js/walkthrough.js"></script>
+</body>
+</html>

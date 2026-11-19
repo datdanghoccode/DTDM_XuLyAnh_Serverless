@@ -1,0 +1,301 @@
+/* web1_learning_hub/static/css/style.css - Editorial Deep Slate Unslop */
+:root {
+    --bg-darkest: #070d19;
+    --bg-base: #0B132B;
+    --bg-surface: #0F172A;
+    --bg-card: #1E293B;
+    --border-subtle: #334155;
+    --border-strong: #475569;
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --primary: #38BDF8;
+    --primary-hover: #0284C7;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+    --mono-font: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--sans-font);
+    line-height: 1.6;
+}
+
+/* Header */
+.top-header {
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0.85rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.brand-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.port-badge {
+    background-color: #0c4a6e;
+    color: #7dd3fc;
+    font-family: var(--mono-font);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid #0284c7;
+    margin-left: 0.5rem;
+}
+
+.nav-link-btn {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    transition: all 0.15s ease;
+}
+
+.nav-link-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* 2-Column Editorial Layout */
+.layout-wrapper {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    max-width: 1440px;
+    margin: 0 auto;
+    min-height: calc(100vh - 65px);
+}
+
+/* Sticky Sidebar */
+.sidebar {
+    background-color: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    padding: 1.5rem 1rem;
+    position: sticky;
+    top: 60px;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+}
+
+.sidebar-heading {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    padding-left: 0.5rem;
+}
+
+.nav-item {
+    display: block;
+    padding: 0.6rem 0.75rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 6px;
+    margin-bottom: 0.25rem;
+    transition: all 0.15s ease;
+}
+
+.nav-item:hover, .nav-item.active {
+    color: var(--primary);
+    background-color: var(--bg-card);
+}
+
+/* Main Content Area */
+.content-area {
+    padding: 2.5rem 3rem;
+    max-width: 1000px;
+}
+
+.article-section {
+    margin-bottom: 3.5rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 2.5rem;
+}
+
+.section-tag {
+    font-family: var(--mono-font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+}
+
+.section-title {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+}
+
+.prose {
+    font-size: 0.95rem;
+    color: #cbd5e1;
+    line-height: 1.7;
+    margin-bottom: 1.25rem;
+}
+
+/* Callout Cards */
+.callout {
+    background-color: var(--bg-card);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 6px 6px 0;
+    padding: 1.25rem;
+    margin: 1.25rem 0;
+}
+
+.callout-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--primary);
+    margin-bottom: 0.4rem;
+}
+
+/* Cross-link Pills */
+.cross-link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: #0c2d48;
+    color: #38bdf8;
+    border: 1px solid #0284c7;
+    padding: 0.4rem 0.85rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+    margin-top: 0.5rem;
+    transition: all 0.15s ease;
+}
+
+.cross-link-pill:hover {
+    background-color: #0284c7;
+    color: #fff;
+}
+
+/* Comparison Tables */
+.tech-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.25rem 0;
+    font-size: 0.85rem;
+}
+
+.tech-table th, .tech-table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-subtle);
+    text-align: left;
+}
+
+.tech-table th {
+    background-color: var(--bg-surface);
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.tech-table tr:nth-child(even) {
+    background-color: rgba(30, 41, 59, 0.4);
+}
+
+/* Interactive Code Walkthrough */
+.walkthrough-container {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+}
+
+.step-list {
+    background-color: var(--bg-darkest);
+    padding: 1rem;
+    border-right: 1px solid var(--border-subtle);
+}
+
+.step-btn {
+    width: 100%;
+    text-align: left;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.6rem;
+    cursor: pointer;
+    font-size: 0.825rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.step-btn:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+.step-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background-color: #0c2d48;
+}
+
+.code-viewer {
+    padding: 1.25rem;
+    background-color: #090f1d;
+    overflow-x: auto;
+}
+
+.code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.code-pre {
+    font-family: var(--mono-font);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #e2e8f0;
+}
+
+.code-annotation {
+    background-color: #172554;
+    border: 1px solid #1e40af;
+    color: #93c5fd;
+    padding: 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    margin-top: 1rem;
+}
